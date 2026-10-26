@@ -1,33 +1,77 @@
 from fastapi import FastAPI
+import mysql.connector
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
+def get_db_connection():
+    return mysql.connector.connect(
+        host=os.getenv("DB_HOST"),
+        port=int(os.getenv("DB_PORT")),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME")
+    )
 app = FastAPI()
-
-products = [
-    {"id":1, "name": "Golden Full Heart Pendent", "category":"Pendant", "price":249},
-    {"id":2,"name": "Simple Bracelet", "category": "Bracelet", "price": 259},
-    {"id":3, "name": "Serpent Watch", "category": "Watch", "price": 500},
-    {"id":4, "name": "Chunky Rings", "category": "Rings", "price": 179}
-
-]
-
-
-@app.get("/")
-def home():
-    return {"messasge": "Welcome To Celeste Rose Ai"}
 
 @app.get("/products")
 def get_products():
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    cursor.execute("SELECT * FROM products")
+    products = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
     return products
 
 @app.get("/products/filter")
 def filter_products(max_price: int):
-    return [p for p in products if p["price"] <= max_price]
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    cursor.execute("SELECT * FROM products WHERE price <= %s", (max_price,))
+    products = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
+    return products
 
 @app.get("/products/category")
-def get_products_by_category(category : str):
-    return [p for p in products if p["category"].lower()== category.lower()]
+def get_products_by_category(category: str):
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    cursor.execute(
+        "SELECT * FROM products WHERE LOWER(category) = LOWER(%s)",
+        (category,)
+    )
+    products = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
+    return products
 
 @app.get("/products/search")
-def search_products(category : str, max_price : int):
-    return [p for p in products if p["category"].lower()== category.lower() and p["price"] <= max_price]
+def search_products(category: str, max_price: int):
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
 
+    cursor.execute(
+        "SELECT * FROM products WHERE LOWER(category) = LOWER(%s) AND price <= %s",
+        (category, max_price)
+    )
+    products = cursor.fetchall()
+
+    cursor.close()
+    connection.close()
+
+    return products
+
+connection = get_db_connection()
+print("MySQL Connected!")
+connection.close()
