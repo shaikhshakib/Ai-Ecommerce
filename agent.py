@@ -6,7 +6,9 @@ from product_tool import search_products
 load_dotenv()
 
 client = OpenAI()
-
+tool_functions = {
+    "search_products": search_products
+}
 tools = [
     {
         "type": "function",
@@ -42,23 +44,35 @@ response = client.responses.create(
 input_messages += response.output
 
 for item in response.output:
+
     if item.type == "function_call":
+
         print("Tool called:", item.name)
-        print("Arguments:", item.arguments)
+
+        tool_name = item.name
+
+        function_to_call = tool_functions.get(tool_name)
 
         args = json.loads(item.arguments)
 
-        products = search_products(
-            args["category"],
-            args["max_price"]
-        )
+        if function_to_call is None:
 
-        print("Database results:", products)
+            result = {"error": "Unknown tool requested"}
+
+        else:
+
+            try:
+                result = function_to_call(**args)
+
+            except Exception as e:
+                result = {"error": str(e)}
+
+        print("Database results:", result)
 
         input_messages.append({
             "type": "function_call_output",
             "call_id": item.call_id,
-            "output": json.dumps(products, default=str)
+            "output": json.dumps(result, default=str)
         })
 
 response = client.responses.create(
@@ -70,3 +84,5 @@ response = client.responses.create(
 
 print("\nAI Final Answer:")
 print(repr(response.output_text))
+
+
