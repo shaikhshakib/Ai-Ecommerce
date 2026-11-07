@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from agent import chat_with_agent, input_messages as default_input_messages
 load_dotenv()
 def get_db_connection():
     return mysql.connector.connect(
@@ -140,3 +142,21 @@ def delete_product(product_id: int):
 
     return {"deleted": deleted}
 
+class ChatRequest(BaseModel):
+    message : str
+    session_id : str
+
+sessions = {}
+
+@app.post("/chat")
+
+def chat(request: ChatRequest):
+    if request.session_id not in sessions:
+        sessions[request.session_id] = default_input_messages.copy()
+
+    reply = chat_with_agent(
+        request.message,
+        sessions[request.session_id]
+    )
+
+    return{"reply" : reply}

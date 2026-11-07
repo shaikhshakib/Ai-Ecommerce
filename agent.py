@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from product_tool import search_products, search_products_by_name
 from stock_tool import check_stock
 from cart_tool import add_to_cart
+from discount_tool import check_discount
+from get_all_products_tool import get_all_products
 load_dotenv()
 
 client = OpenAI()
@@ -11,7 +13,9 @@ tool_functions = {
     "search_products": search_products,
     "search_products_by_name" : search_products_by_name,
     "check_stock" : check_stock,
-    "add_to_cart" : add_to_cart
+    "add_to_cart" : add_to_cart,
+    "check_discount" : check_discount,
+    "get_all_products" : get_all_products
 
 }
 tools = [
@@ -72,7 +76,35 @@ tools = [
         "additionalProperties": False
     },
     "strict": True
-}
+},
+{
+    "type" : "function",
+    "name" : 'check_discount',
+    "description" : "Check the discount percentage and final discounted price  of a product using its product ID.",
+    "parameters" : {
+        "type" : "object",
+        "properties" : {
+            "product_id" : {
+                "type" : "integer"
+            }
+        },
+        "required" : ["product_id"],
+        "additionalProperties" : False
+    },
+    "strict" : True
+},
+{
+    "type" : "function",
+    "name" : "get_all_products",
+    "description" : "Get the complete list of products available in the jewellery store , including product ID, name, category,price and stock",
+    "parameters" : {
+        "type" : "object",           
+        "properties" : {},
+        "required" : [],
+        "additionalProperties" : False
+    },
+    "strict" : True
+    }
 ]
 
 input_messages = [
@@ -89,7 +121,7 @@ input_messages = [
         Never claim an action succeeded unless the tool confirms it. 
         When a customer wants to add a product to cart:
 
-        1. First use search_product_by_name to identify the product.
+        1. First use search_products_by_name to identify the product.
         2. If multiple products match, ask the customer to choose.
         3. Use check_stock to verify availability.
         4. Ask the customer for confirmation before adding to cart.
@@ -105,69 +137,104 @@ input_messages = [
         5. Ask for explicit confirmation before adding to cart.
         6. Execute add_to_cart only after confirmation.
         7. Never claim an action succeeded unless the tool confirms it.
+
+        IMPORTANT TOOL RULES:
+
+        1. When a customer asks whether a product is available or asks for current stock, you MUST call check_stock.
+
+        2. First identify the product using search_products_by_name.
+
+        3. Extract the product ID from the search result.
+
+        4. Then call check_stock using that product ID.
+
+        5. Do not answer stock availability using search results alone.
+
+        6. Always display prices in Indian Rupees (₹).
+
+        DISCOUNT AND OFFER RULES:
+
+        1. Never invent discounts, offers, or promotional codes.
+        2. Never claim that you checked discounts because no discount tool exists.
+        3. If a customer asks about discounts, clearly explain that discount information is currently unavailable.
+        4. Never promise to check offers in the future.
+        5. Only provide information returned by available tools or explicitly provided in the developer instructions.
+
+        - When a customer asks about a discount or offer on a product:
+        1. Identify the product using search_products_by_name.
+        2. Get its product ID.
+        3. Call check_discount using that product ID.
+        4. Tell the customer the original price, discount percentage, and final discounted price.
+        5. Never invent or assume discounts. Only report values returned by the tool.
+        6. If no discount is available, clearly tell the customer.
+
+        - When a customer asks to see all products or the complete jewellery collection:
+        1. Call get_all_products.
+        2. Display the products with their names, categories and prices.
+        3. Mention stock availability when relevant.
+        4. Do not invent products, prices or stock.
+        5. Only show information returned by the tool.
         """
     },
-    {
-        "role": "user",
-        "content": "Is Golden Pendant available? Check its current stock."
-    }
 ]
+    # Step 3: Execute tools
+def chat_with_agent(user_message, input_messages):
+    input_messages.append({
+        "role" : "user",
+        "content" : user_message
+    })
 
-response = client.responses.create(
-    model="gpt-4.1-mini",
-    input=input_messages,
-    tools=tools,
-    tool_choice="auto"
-)
+    response = client.responses.create(
+        model = "gpt-4.1-mini",
+        input = input_messages,
+        tools = tools,
+        tool_choice = "auto"
+    )
 
-while True:
+    while True:
+        function_calls = [
+            item for item in response.output
+            if item.type == "function_call"
+        ]
 
-    function_calls = [
-        item for item in response.output
-        if item.type == "function_call"
-    ]
+        if not function_calls:
+            break
+        input_messages += response.output
 
-    if not function_calls:
-        break
+        for item in function_calls:
+
+            function_to_call = tool_functions.get(item.name)
+            args = json.loads(item.arguments)
+
+            if function_to_call is None:
+                result = {"error": "Unknown tool requested"}
+
+            elif item.name == "add_to_cart":
+                result = {
+                    "success" : False,
+                    "message" : "Website cart confirmation is not connected yet. Product was not added"
+                }
+
+            else:
+                try:
+                    result = function_to_call(**args)
+                except Exception as e:
+                    result = {"error": str(e)}
+
+            input_messages.append({
+                "type" : "function_call_output",
+                'call_id' : item.call_id,
+
+                "output" : json.dumps(result, default = str)
+            })
+
+        response = client.responses.create(
+            model = "gpt-4.1-mini",
+            input = input_messages,
+            tools = tools,
+            tool_choice = "auto"
+        )
 
     input_messages += response.output
 
-    for item in function_calls:
-
-        print("Tool called:", item.name)
-
-        function_to_call = tool_functions.get(item.name)
-
-        args = json.loads(item.arguments)
-
-        if function_to_call is None:
-
-            result = {"error": "Unknown tool requested"}
-
-        else:
-
-            try:
-                result = function_to_call(**args)
-
-            except Exception as e:
-                result = {"error": str(e)}
-
-        print("Tool Result:", result)
-
-        input_messages.append({
-            "type": "function_call_output",
-            "call_id": item.call_id,
-            "output": json.dumps(result, default=str)
-        })
-
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=input_messages,
-        tools=tools,
-        tool_choice="auto"
-    )
-
-print("\nAI Final Answer:")
-print(response.output_text)
-
-
+    return response.output_text               
