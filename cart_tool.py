@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def add_to_cart(product_id, quantity, confirmed=False):
+def add_to_cart(product_id, quantity,session_id, confirmed=False):
 
     # Step 1: Confirmation check
     if confirmed is not True:
@@ -52,8 +52,8 @@ def add_to_cart(product_id, quantity, confirmed=False):
 
         # Step 5: Add product to cart
         cursor.execute(
-            "INSERT INTO cart_items (product_id, quantity) VALUES (%s, %s)",
-            (product_id, quantity)
+            "INSERT INTO cart_items (product_id, quantity, session_id) VALUES (%s, %s, %s)",
+            (product_id, quantity, session_id)
         )
 
         connection.commit()
@@ -82,6 +82,11 @@ def add_to_cart(product_id, quantity, confirmed=False):
 
 if __name__ == "__main__":
 
-    result = add_to_cart(1, 2, confirmed=False)
+    result = add_to_cart(
+        product_id=1,
+        quantity=2,
+        session_id="test-session",
+        confirmed=False
+    )
 
     print("Cart Result:", result)
