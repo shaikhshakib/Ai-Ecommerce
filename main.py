@@ -1,15 +1,23 @@
 import mysql.connector
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from agent import chat_with_agent, input_messages as default_input_messages
 from cart_tool import add_to_cart
 from place_order_tool import place_order
 from view_cart_tool import view_cart
+from auth import hash_password, verify_password, create_access_token
+import re
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from auth import verify_access_token
+
 
 load_dotenv()
+
+
+# Database connection
 def get_db_connection():
     return mysql.connector.connect(
         host=os.getenv("DB_HOST"),
@@ -19,7 +27,65 @@ def get_db_connection():
         database=os.getenv("DB_NAME")
     )
 
+
+# FastAPI application
 app = FastAPI()
+
+# JWT authentication security
+security = HTTPBearer()
+
+
+# Get currently logged-in user
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+
+    token = credentials.credentials
+
+    user_id = verify_access_token(token)
+
+    if user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token."
+        )
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT id, full_name, email, phone
+            FROM users
+            WHERE id = %s
+            """,
+            (user_id,)
+        )
+
+        user = cursor.fetchone()
+
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="User not found."
+            )
+
+        return user
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -383,3 +449,207 @@ def chat(request: ChatRequest):
     )
 
     return {"reply": reply}
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str
+
+class RegisterRequest(BaseModel):
+    full_name : str
+    email : str
+    phone : str
+    password : str
+
+
+@app.post("/auth/register")
+def register_user(request: RegisterRequest):
+
+    full_name = request.full_name.strip()
+    email= request.email.strip().lower()
+    phone = request.phone.strip()
+    password = request.password
+
+    if len(full_name) < 2:
+        raise HTTPException(status_code=400, detail="Enter a valid name.")
+
+    if "@" not in email or"." not in email:
+        raise HTTPException(status_code=400, detail='Enter a valid email')
+
+    if len(phone) != 10 or not phone.isdigit():
+        raise HTTPException(status_code=40, detail= "Enter a valid 10-digit number")
+
+    if len(password) < 8:
+        raise HTTPException(status_code= 400, detail="Password must contain atleast 8 charachters")
+
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(
+            status_code= 400,
+            detail="Password must contain atleast one uppercase letter"
+        )
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(
+            status_code=400,
+            detail= "Password should contain atleast one lowercase letter"
+        )
+    
+    if not re.search(r"[0-9]", password):
+        raise HTTPException(
+            status_code=40,
+            detail="Password must contain atleast one number"
+        )
+    if not re.search(r"[^A-Za-z0-9]", password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one special charachter"
+        )
+
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary = True)
+
+        cursor.execute(
+            "SELECT id FROM users WHERE email = %s",
+            (email,)
+        )
+
+        existing_user = cursor.fetchone()
+
+        if existing_user:
+            raise HTTPException(
+                status_coide = 400,
+                detail = "Email is already registered."
+            )
+
+        hashed_password = hash_password(password)
+
+
+        cursor.execute(
+            """
+            INSERT INTO users
+            (full_name, email, phone, password_hash)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (full_name, email, phone, hashed_password)
+        )
+
+        connection.commit()
+
+        user_id = cursor.lastrowid
+
+        return{
+            "success" : True,
+            "message" : "Registration successful!",
+            "user" : {
+                "id" : "user_id",
+                "full_name" : full_name,
+                "email" : email,
+                "phone" : phone                    
+            }
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        if connection:
+            connection.rollback()
+
+        print("Registration error: ", e)
+
+        raise HTTPException(
+            status_code = 500,
+            detail = "Registration failed. Please Try Again."
+        )
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password : str
+
+@app.post("/auth/login")
+def login_user(request: LoginRequest):
+
+    email = request.email.strip().lower()
+    password = request.password
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary= True)
+
+        cursor.execute(
+            "SELECT * FROM users WHERE email = %s",
+            (email,)
+        )
+
+        user = cursor.fetchone()
+
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail = "Invalid email or password."
+            )
+
+        if not verify_password(password, user["password_hash"]):
+            raise HTTPException(
+                status_code=401,
+                detail = "Invalid email or password."
+            )
+
+        access_token = create_access_token(
+            {"sub": str(user["id"])
+             })
+
+        return {
+            "success" : True,
+            "message" : 'Login Successful!',
+            "access_token" : access_token,
+            "token_type" : "bearer",
+            "user" : {
+                "id" : user["id"],
+                "full_name" : user["full_name"],
+                "email" : user["email"],
+                "phone" : user["phone"]
+            }
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print("Login Error:", e)
+
+        raise HTTPException(
+            status_code=500,
+            detail="Login Failed. Please Try Again."
+        )
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+@app.get("/auth/me")
+def get_my_account(
+    current_user: dict = Depends(get_current_user)
+):
+    return{
+        "success" : True,
+        "message" : 'Account details fetched successfully!',
+        "user" : current_user
+    }
