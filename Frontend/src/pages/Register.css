@@ -1,0 +1,120 @@
+.auth-page {
+  min-height: 85vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 50px 20px;
+  background: linear-gradient(135deg, #faf7f2, #f3e4df);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 460px;
+  padding: 45px 40px;
+  background: #fffdf9;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.auth-logo {
+  display: inline-block;
+  color: var(--burgundy);
+  font-family: var(--heading);
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: 3px;
+}
+
+.auth-subtitle {
+  margin-top: 25px;
+  color: var(--mauve);
+  font-size: 10px;
+  letter-spacing: 3px;
+  font-weight: 600;
+}
+
+.auth-card h1 {
+  margin: 12px 0;
+  font-size: 38px;
+  color: var(--burgundy);
+}
+
+.auth-description {
+  margin-bottom: 28px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.auth-card input {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: white;
+  color: var(--text);
+  outline: none;
+  font-size: 13px;
+}
+
+.auth-card input:focus {
+  border-color: var(--mauve);
+}
+
+.auth-card form button {
+  padding: 15px;
+  margin-top: 8px;
+  border: none;
+  border-radius: 4px;
+  background: var(--burgundy);
+  color: white;
+  font-size: 13px;
+  letter-spacing: 1px;
+  transition: 0.3s;
+}
+
+.auth-card form button:hover {
+  background: var(--brown);
+}
+
+.auth-footer {
+  margin-top: 25px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-footer a {
+  color: var(--burgundy);
+  font-weight: 600;
+}
+
+@media (max-width: 500px) {
+  .auth-card {
+    padding: 35px 22px;
+  }
+}
+
+.form-error {
+  color: #b34343;
+  background: #fff0f0;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: left;
+}
+
+.form-success {
+  color: #477653;
+  background: #edf7ef;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: left;
+}

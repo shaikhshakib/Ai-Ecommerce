@@ -1,0 +1,216 @@
+.hero {
+  min-height: 520px;
+  padding: 80px 10%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  background: linear-gradient(
+    110deg,
+    #faf3ed 0%,
+    #f3e4df 55%,
+    #ead5d2 100%
+  );
+}
+
+.hero-content {
+  max-width: 550px;
+}
+
+.hero-tagline {
+  color: var(--mauve);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  margin-bottom: 22px;
+}
+
+.hero-content h1 {
+  font-size: clamp(42px, 5vw, 68px);
+  line-height: 1.15;
+  color: var(--burgundy);
+  margin-bottom: 22px;
+}
+
+.hero-description {
+  max-width: 420px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.9;
+  margin-bottom: 30px;
+}
+
+.hero-button {
+  display: inline-block;
+  padding: 14px 30px;
+  background: var(--burgundy);
+  color: white;
+  font-size: 13px;
+  letter-spacing: 1px;
+  border-radius: 3px;
+  transition: 0.3s ease;
+}
+
+.hero-button:hover {
+  background: var(--brown);
+  transform: translateY(-2px);
+}
+
+.hero-decoration {
+  width: 330px;
+  height: 330px;
+  flex-shrink: 0;
+  border: 1px solid rgba(101, 59, 70, 0.3);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 253, 249, 0.35);
+}
+
+.hero-flower {
+  color: var(--mauve);
+  font-size: 85px;
+  margin-bottom: 15px;
+}
+
+.hero-decoration p {
+  color: var(--burgundy);
+  font-family: var(--heading);
+  font-size: 22px;
+  letter-spacing: 3px;
+}
+
+.hero-decoration span:last-child {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 2px;
+  margin-top: 8px;
+}
+
+@media (max-width: 700px) {
+  .hero {
+    padding: 60px 7%;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .hero-description {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero-decoration {
+    width: 250px;
+    height: 250px;
+  }
+
+  .hero-flower {
+    font-size: 65px;
+  }
+}
+
+/* Jewellery Collection */
+
+main {
+  padding: 75px 7%;
+  background: var(--ivory);
+  text-align: center;
+}
+
+.collection-heading {
+  margin-bottom: 35px;
+}
+
+.collection-tagline {
+  color: var(--mauve);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  margin-bottom: 12px;
+}
+
+.collection-heading h2 {
+  font-size: 38px;
+  margin-bottom: 12px;
+  color: var(--burgundy);
+}
+
+.collection-heading > p:last-child {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.search-box {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 35px auto 45px;
+}
+
+.search-box input,
+.search-box select {
+  padding: 13px 16px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: white;
+  color: var(--text);
+  outline: none;
+}
+
+.search-box button {
+  padding: 13px 22px;
+  border: none;
+  background: var(--burgundy);
+  color: white;
+  border-radius: 4px;
+}
+
+.search-box button:hover {
+  background: var(--brown);
+}
+
+.products {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 25px;
+}
+
+.product {
+  width: 100%;
+  margin: 0;
+  padding: 30px 20px;
+  background: #fffdf9;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  box-shadow: var(--shadow);
+  transition: transform 0.3s ease;
+}
+
+.product:hover {
+  transform: translateY(-5px);
+}
+
+.product h3 {
+  font-size: 21px;
+  margin-bottom: 12px;
+  color: var(--burgundy);
+}
+
+.product p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+@media (max-width: 600px) {
+  main {
+    padding: 50px 5%;
+  }
+
+  .collection-heading h2 {
+    font-size: 30px;
+  }
+}

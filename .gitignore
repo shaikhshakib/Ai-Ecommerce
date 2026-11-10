@@ -1,9 +1,27 @@
+# Python
 venv/
+env/
 .venv/
-**pycache**/
+__pycache__/
+**/__pycache__/
 *.py[cod]
+
+# Environment variables and secrets
 .env
 .env.*
 !.env.example
+
+# Node.js
+node_modules/
+**/node_modules/
+
+# Build files
+dist/
+**/dist/
+
+# IDE
 .idea/
 .vscode/
+
+# Logs
+*.log

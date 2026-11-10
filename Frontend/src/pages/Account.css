@@ -1,0 +1,193 @@
+.account-page {
+  min-height: 100vh;
+  background: var(--ivory);
+  padding: 60px 8%;
+  color: var(--text);
+  font-family: var(--body);
+}
+
+.account-header {
+  text-align: center;
+  margin-bottom: 45px;
+}
+
+.account-tagline {
+  color: var(--mauve);
+  font-size: 12px;
+  letter-spacing: 3px;
+  font-weight: 600;
+}
+
+.account-header h1 {
+  font-family: var(--heading);
+  font-size: 44px;
+  color: var(--burgundy);
+  margin: 12px 0;
+}
+
+.account-header > p:last-child {
+  color: var(--muted);
+}
+
+.account-card {
+  max-width: 750px;
+  margin: 0 auto 55px;
+  padding: 30px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 5px 20px rgba(73, 53, 47, 0.05);
+}
+
+.account-card h2,
+.orders-heading h2 {
+  font-family: var(--heading);
+  color: var(--burgundy);
+  font-size: 28px;
+}
+
+.account-card p {
+  margin: 15px 0;
+  color: var(--muted);
+}
+
+.orders-section {
+  max-width: 750px;
+  margin: auto;
+}
+
+.orders-heading {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.orders-list {
+  display: grid;
+  gap: 18px;
+}
+
+.order-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 5px 20px rgba(73, 53, 47, 0.04);
+}
+
+.order-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.order-top h3 {
+  color: var(--burgundy);
+  font-family: var(--heading);
+  font-size: 22px;
+}
+
+.order-status {
+  background: var(--soft-pink);
+  color: var(--burgundy);
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.order-card p {
+  margin: 12px 0;
+  color: var(--muted);
+}
+
+.empty-orders {
+  text-align: center;
+  background: var(--white);
+  padding: 40px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.empty-orders h3 {
+  font-family: var(--heading);
+  color: var(--burgundy);
+  font-size: 24px;
+}
+
+.empty-orders p {
+  color: var(--muted);
+}
+
+.logout-button {
+  display: block;
+  margin: 45px auto 0;
+  padding: 13px 38px;
+  background: var(--burgundy);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.logout-button:hover {
+  background: var(--brown);
+}
+
+.account-error {
+  text-align: center;
+  color: #b42318;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 600px) {
+  .account-page {
+    padding: 40px 5%;
+  }
+
+  .account-header h1 {
+    font-size: 34px;
+  }
+
+  .account-card {
+    padding: 22px;
+  }
+
+  .order-card {
+    padding: 20px;
+  }
+}
+
+.order-products {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+
+.order-products h4 {
+  color: var(--burgundy);
+  font-family: var(--heading);
+  font-size: 18px;
+  margin-bottom: 15px;
+}
+
+.order-product {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.order-total {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: 15px;
+  margin-top: 15px;
+  color: var(--burgundy);
+}
