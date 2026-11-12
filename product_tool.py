@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def search_products(category, max_price=None, color=None):
+def search_products(category, max_price=None, color=None, limit=5):
 
     category_map = {
     "pendants": "Pendant",
@@ -41,7 +41,8 @@ def search_products(category, max_price=None, color=None):
         cursor = connection.cursor(dictionary=True)
 
         query = """
-    SELECT * FROM products
+    SELECT id, name, category, price, stock, color
+    FROM products
     WHERE LOWER(category) = LOWER(%s)
 """
 
@@ -54,10 +55,15 @@ def search_products(category, max_price=None, color=None):
         if color:
             query += " AND LOWER(color) LIKE LOWER(%s)"
             params.append(f"%{color}%")
-
+        if limit is not None:
+            query += " LIMIT %s"
+            params.append(limit)
         cursor.execute(query, tuple(params))
 
         products = cursor.fetchall()
+
+        for product in products:
+            product["price"] = float(product["price"])
 
         return products
 

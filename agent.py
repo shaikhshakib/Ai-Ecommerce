@@ -9,7 +9,7 @@ from get_all_products_tool import get_all_products
 from view_cart_tool import view_cart
 from update_cart_tool import update_cart
 from remove_from_cart_tool import remove_from_cart
-
+from compare_products_tool import compare_products
 load_dotenv()
 
 client = OpenAI()
@@ -23,14 +23,15 @@ tool_functions = {
     "view_cart" : view_cart,
     "update_cart": update_cart,
     "remove_from_cart": remove_from_cart,
-    "get_product_details" : get_product_details
+    "get_product_details" : get_product_details,
+    "compare_products": compare_products,
 
 }
 tools = [
     {
     "type": "function",
     "name": "search_products",
-    "description": "Search jewellery by category, maximum price and optional colour.",
+    "description": "Search jewellery by category, maximum price, optional colour and result limit.",
     "parameters": {
         "type": "object",
         "properties": {
@@ -45,9 +46,13 @@ tools = [
             "color": {
                 "type": ["string", "null"],
                 "description": "Optional product colour such as Gold or Silver. Use null if not specified."
+            },
+            "limit": {
+                "type": ["integer", "null"],
+                "description": "Use 5 for normal product browsing. Use null ONLY when the customer explicitly asks to see all matching products."
             }
         },
-        "required": ["category", "max_price", "color"],
+        "required": ["category", "max_price", "color", "limit"],
         "additionalProperties": False
     },
     "strict": True
@@ -190,105 +195,209 @@ tools = [
             "additionalProperties": False
         },
         "strict": True
-    }
+    },
+{
+    "type": "function",
+    "name": "compare_products",
+    "description": "Compare two or more jewellery products based on price, colour, stock and styling information.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "product_names": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "A dynamic list of exact jewellery product names to compare. Include at least two products."
+            }
+        },
+        "required": ["product_names"],
+        "additionalProperties": False
+    },
+    "strict": True
+}
 ]
 
 input_messages = [
     {
         "role": "developer",
         "content": """
-You are Céleste Rosé's Jewellery Shopping Assistant.
+You are the CELESTE ROSE Jewellery Shopping Assistant — a friendly, stylish and knowledgeable jewellery bestie.
 
-GENERAL RULES:
-1. Always display prices in Indian Rupees (₹).
-2. Never invent products, prices, stock or discounts.
-3. Use available tools to retrieve accurate information.
-4. Never claim an action succeeded unless the tool confirms it.
+PERSONALITY & BRAND VOICE:
+- Speak like a warm, fashionable jewellery stylist.
+- Your personality should feel feminine, cute, friendly and welcoming.
+- Maintain a premium luxury boutique experience.
+- Use natural, simple and conversational English.
+- Make customers feel special and comfortable.
+- Never sound robotic, overly formal or pushy.
+- Use cute emojis naturally: 🎀 ✨ 💗 🌷 🩷 💎
+- Use 🎀 and ✨ especially for greetings, headings and recommendations.
+- Avoid putting emojis in every sentence.
+- Keep responses short, attractive and easy to scan.
+
+GREETING:
+- Welcome customers warmly.
+- Introduce yourself as their personal jewellery bestie.
+- Example: "Hey, gorgeous! 🎀 Welcome to CELESTE ROSE ✨ Let's find something you'll absolutely love! 💗"
+- Do not repeat the full greeting in every response.
+
+GENERAL:
+- Always display prices in Indian Rupees (₹).
+- Never invent products, prices, stock, discounts or offers.
+- Use tools for accurate information.
+- Never claim an action succeeded unless confirmed by the backend.
+- Only recommend products returned by tools.
 
 PRODUCT SEARCH:
-1. Use search_products_by_name when customers mention a specific product name.
-2. Use search_products for category, price and colour-based searches.
-3. Identify the correct category from the customer's request:
-   - Pendants = Pendant
-   - Bracelets = Bracelet
-   - Rings = Ring
-   - Earrings = Earrings
-   - Bangles = Bangles
-4. Extract the maximum budget when the customer mentions a price limit.
-5. Extract the colour when the customer mentions Gold, Silver or another colour.
-6. If the customer does not mention a colour, pass null.
-7. Never invent product details. Only recommend products returned by the tools.
-8. Use get_all_products when customers ask to see the complete collection.
-9. Use check_stock when customers ask about product availability or stock.
-10. Display product name, colour, price and available stock when relevant.
-11. Display every matching product returned by search_products. Never silently omit matching products.
-12. Preserve the exact product name, colour, price and stock returned by the tool.
+- Specific product name: use search_products_by_name.
+- Category, colour or budget search: use search_products.
+- Map categories correctly:
+  Pendants=Pendant, Bracelets=Bracelet, Rings=Ring,
+  Earrings=Earrings, Bangles=Bangles.
+- Extract maximum budget and colour when provided.
+- Pass null for unspecified colour.
+- Display all matching results without silently omitting products.
+- Show product name, colour, price and stock when relevant.
+- Use get_all_products for the complete collection.
+- For normal product browsing requests, pass limit=5.
+- If the customer explicitly asks to see all matching products, pass limit=null.
+- Never use limit=null unless the customer explicitly requests all products.
+- Apply category, colour and budget filters before limiting results.
 
 PRODUCT DETAILS:
-1. When a customer asks for detailed information about a specific product, use get_product_details.
-2. Pass the exact product name as product_name.
-3. Display the product name, SKU, category, colour, price and available stock.
-4. Display discount information when applicable.
-5. If description or image_url is missing, do not invent information.
-6. If the product is not found, politely inform the customer that the product is unavailable.
-7. Never invent product details.
-
-ADD TO CART:
-1. When a customer wants to add a product, identify it using search_products_by_name.
-2. Extract the product_id and requested quantity from the search result and customer message.
-3. If the customer does not mention a quantity, use requested_quantity = 1.
-4. ALWAYS call check_stock before calling add_to_cart.
-5. Pass both product_id and requested_quantity to check_stock.
-6. Check the enough_stock value returned by check_stock.
-7. If enough_stock is True, call add_to_cart with the product_id and requested quantity.
-8. If enough_stock is False, DO NOT call add_to_cart.
-9. Inform the customer about the available stock and explain that the requested quantity is unavailable.
-10. The add_to_cart tool only prepares a pending request. It does not insert anything into the database.
-11. The backend will ask the customer for confirmation after the pending request is prepared.
-12. Do not ask for confirmation yourself.
-13. Do not call add_to_cart again after the customer confirms.
-14. The backend handles Yes and No responses.
-15. Never claim a product was added until the backend confirms success.
+- Use get_product_details for detailed product queries.
+- Pass the exact product name as product_name.
+- Display name, SKU, category, colour, price, stock and available discount.
+- Never invent missing descriptions or image URLs.
+- Politely report products that cannot be found.
 
 STOCK:
-1. Always use check_stock for current stock availability.
-2. Pass product_id and requested_quantity to check_stock.
-3. If the customer does not mention a quantity, use requested_quantity = 1.
-4. Use enough_stock to determine whether the requested quantity is available.
-5. Never claim sufficient stock without checking the tool result.
+- Always use check_stock for current availability.
+- Pass product_id and requested_quantity.
+- Default quantity to 1 if unspecified.
+- Follow the returned enough_stock value.
+- Never claim stock is sufficient without checking.
 
-VIEW CART:
-Use view_cart when the customer asks to see their cart.
+ADD TO CART:
+1. Identify the product using search_products_by_name.
+2. Extract product_id and requested quantity (default 1).
+3. Call check_stock with product_id and requested_quantity.
+4. If enough_stock is True, call add_to_cart.
+5. Otherwise, explain the available quantity. Never call add_to_cart.
+6. add_to_cart only prepares a pending request; it does not insert into the database.
+7. The backend handles customer confirmation and actual insertion.
+8. Do not ask for confirmation yourself.
+9. Do not call add_to_cart again after confirmation.
+10. Never claim success before backend confirmation.
 
-UPDATE CART:
-Use search_products_by_name to identify the product, then update_cart to change its quantity.
-
-REMOVE FROM CART:
-Use search_products_by_name to identify the product, then remove_from_cart to remove it.
+CART:
+- Use view_cart to display the cart.
+- To update quantity, identify the product using search_products_by_name,
+  then call update_cart.
+- To remove a product, identify it using search_products_by_name,
+  then call remove_from_cart.
 
 DISCOUNTS:
-1. Use search_products_by_name to identify the product.
-2. Use check_discount to retrieve discount information.
-3. Report only the values returned by the tool.
-4. Never invent discounts or offers.
+- Identify the product using search_products_by_name.
+- Use check_discount.
+- Report only the returned discount information.
+- Never invent offers or discounts.
 
+PRODUCT COMPARISON & JEWELLERY STYLIST:
+- When the customer asks to compare products, use compare_products.
+- Pass all requested product names in product_names.
+- Compare price, colour, stock and available styling information.
+- Prioritise the customer's outfit, occasion, budget and preferences.
+- Bold products suit statement and glamorous styling.
+- Minimal products suit simple, cute and elegant styling.
+- Normal products can be described as versatile.
+- For Depends on outfit, do not assume styling compatibility.
+- Never invent product design details or occasions.
+- If the customer has not mentioned an outfit or occasion, give a balanced comparison.
+- Always provide a clear final recommendation with reasons.
+- If a product name has multiple colour variants, clarify which variant the customer means.
+
+COMPARISON RESPONSE FORMAT:
+- Start with a cute, attractive heading such as "🎀 Your Jewellery Match-Up ✨".
+- Keep product information compact because the frontend displays comparison cards.
+- Do not repeat every price, colour and stock detail already shown in the cards.
+- Include a short stylist's opinion.
+- Clearly highlight the final recommendation.
+- Use tasteful emojis to highlight important information.
+- Keep sentences short and avoid long paragraphs.
+
+RECOMMENDATION STYLE:
+- Use phrases like "My pick for you 💗", "A little sparkle never hurts ✨"
+  and "This one's a beauty! 🎀" naturally.
+- Explain why a recommendation suits the customer's stated preference.
+- Never pressure customers into buying.
+- Suggest alternatives only when supported by product information.
+
+FINAL RULE:
+Make every interaction feel like shopping with a friendly jewellery bestie at a beautiful boutique.
+Cute, elegant, helpful and trustworthy — that's the CELESTE ROSE experience. 🎀✨
 """
     }
 ]
+token_totals = {
+    "input": 0,
+    "output": 0,
+    "total": 0
+}
+def limit_conversation_history(input_messages, max_turns=8):
+
+    user_turn_positions = [
+        index
+        for index, item in enumerate(input_messages)
+        if isinstance(item, dict) and item.get("role") == "user"
+    ]
+
+    if len(user_turn_positions) <= max_turns:
+        return
+
+    keep_from = user_turn_positions[-max_turns]
+
+    developer_messages = [
+        item
+        for item in input_messages[:keep_from]
+        if isinstance(item, dict) and item.get("role") == "developer"
+    ]
+
+    input_messages[:] = developer_messages + input_messages[keep_from:]
+
+def track_token_usage(response, token_totals):
+
+    usage = response.usage
+
+    if usage:
+        token_totals["input"] += usage.input_tokens
+        token_totals["output"] += usage.output_tokens
+        token_totals["total"] += usage.total_tokens
+
+        print("\n========== OPENAI TOKEN USAGE ==========")
+        print("Input Tokens:", usage.input_tokens)
+        print("Output Tokens:", usage.output_tokens)
+        print("Total Tokens:", usage.total_tokens)
+        print("========================================\n")
+
     # Step 3: Execute tools
 def chat_with_agent(user_message, input_messages, pending_cart, session_id):
+    comparison_data = None
+    limit_conversation_history(input_messages, max_turns=8)
     input_messages.append({
         "role" : "user",
         "content" : user_message
     })
 
     response = client.responses.create(
+        
         model = "gpt-4.1-mini",
         input = input_messages,
         tools = tools,
         tool_choice = "auto"
     )
-
+    track_token_usage(response, token_totals)
     while True:
         function_calls = [
             item for item in response.output
@@ -331,33 +440,38 @@ def chat_with_agent(user_message, input_messages, pending_cart, session_id):
             else:
                 try:
                     result = function_to_call(**args)
+
+                    if item.name == "compare_products" and result.get("success"):
+                        comparison_data = result
+
                     print("DEBUG TOOL NAME:", item.name)
                     print("DEBUG TOOL RESULT:", result)
                 except Exception as e:
                     result = {"error": str(e)}
-
+            print("DEBUG FUNCTION CALL:", item.name)
+            print("DEBUG CALL ID:", item.call_id)
+            print("DEBUG RESULT:", result)
             input_messages.append({
                 "type" : "function_call_output",
                 'call_id' : item.call_id,
 
                 "output" : json.dumps(result, default = str)
             })
-            if pending_cart:
-                confirmation_message = "Your product is ready. Would you like me to add it to your cart? Please confirm."
-
-                input_messages.append({
-                    "role": "assistant",
-                    "content": confirmation_message
-                })
-
-                return confirmation_message
+            print("DEBUG OUTPUT ADDED FOR:", item.call_id)
         response = client.responses.create(
             model = "gpt-4.1-mini",
             input = input_messages,
             tools = tools,
             tool_choice = "auto"
         )
-
+    track_token_usage(response, token_totals)
     input_messages += response.output
-
-    return response.output_text               
+    print("\n========== TOTAL INTERACTION USAGE ==========")
+    print("Total Input Tokens:", token_totals["input"])
+    print("Total Output Tokens:", token_totals["output"])
+    print("Total Tokens:", token_totals["total"])
+    print("=============================================\n")
+    return {
+        "reply": response.output_text,
+        "comparison": comparison_data
+    }            

@@ -12,8 +12,9 @@ from auth import hash_password, verify_password, create_access_token
 import re
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from auth import verify_access_token
-
-
+from update_cart_tool import update_cart
+from remove_from_cart_tool import remove_from_cart
+from stock_tool import check_stock
 load_dotenv()
 
 
@@ -84,6 +85,59 @@ def get_current_user(
         if connection:
             connection.close()
 
+# Optional authentication for chatbot
+optional_security = HTTPBearer(auto_error=False)
+
+
+def get_optional_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(optional_security)
+):
+
+    if credentials is None:
+        return None
+
+    token = credentials.credentials
+
+    user_id = verify_access_token(token)
+
+    if user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token."
+        )
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT id, full_name, email, phone
+            FROM users
+            WHERE id = %s
+            """,
+            (user_id,)
+        )
+
+        user = cursor.fetchone()
+
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="User not found."
+            )
+
+        return user
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
 
 # CORS Configuration
 app.add_middleware(
@@ -219,7 +273,10 @@ sessions = {}
 pending_carts = {}
 checkout_states = {}
 @app.post("/chat")
-def chat(request: ChatRequest):
+def chat(
+    request: ChatRequest,
+    current_user: dict = Depends(get_optional_current_user)
+):
 
     if request.session_id not in sessions:
         sessions[request.session_id] = default_input_messages.copy()
@@ -279,11 +336,19 @@ def chat(request: ChatRequest):
 
     # Step 2: Start checkout
     if not checkout and message_lower in [
-        "checkout",
-        "i want to checkout",
-        "proceed to checkout",
-        "place my order"
-    ]:
+    "checkout",
+    "check out",
+    "i want to checkout",
+    "i want to check out",
+    "proceed to checkout",
+    "proceed to check out",
+    "place my order"
+]:
+
+        if not current_user:
+            return {
+                "reply": "Please log in to your CELESTE ROSE account before placing an order."
+            }
 
         cart = view_cart(request.session_id)
 
@@ -389,7 +454,7 @@ def chat(request: ChatRequest):
 
             return {"reply": summary}
 
-        # Step 5: Final order confirmation
+                # Step 5: Final order confirmation
         elif stage == "confirmation":
 
             if message_lower in [
@@ -405,26 +470,24 @@ def chat(request: ChatRequest):
                     session_id=request.session_id,
                     customer_name=checkout["customer_name"],
                     phone=checkout["phone"],
-                    address=checkout["address"]
+                    address=checkout["address"],
+                    user_id=current_user["id"]
                 )
 
                 checkout_states.pop(request.session_id, None)
 
                 if result["success"]:
-
                     return {
                         "reply": (
                             f"Your order has been placed successfully!\n\n"
                             f"Order ID: {result['order_id']}\n"
                             f"Customer: {result['customer_name']}\n"
                             f"Total Amount: ₹{result['total_amount']:.2f}\n\n"
-                            "Thank you for shopping with Céleste Rosé!"
+                            "Thank you for shopping with CELESTE ROSE!"
                         )
                     }
 
-                return {
-                    "reply": result["message"]
-                }
+                return {"reply": result["message"]}
 
             elif message_lower in ["no", "no thanks"]:
 
@@ -435,21 +498,266 @@ def chat(request: ChatRequest):
                 }
 
             else:
-
                 return {
                     "reply": "Please confirm your order by replying Yes or No."
                 }
 
-    # Step 6: Normal AI conversation
-    reply = chat_with_agent(
+        # Step 6: Handle simple cart requests directly using Python
+
+    # A. Show Cart
+    if message_lower in [
+        "show my cart",
+        "view cart",
+        "show cart",
+        "my cart",
+        "what is in my cart",
+        "what's in my cart"
+    ]:
+
+        cart = view_cart(request.session_id)
+
+        if not cart["items"]:
+            reply = "Your cart is currently empty."
+
+        else:
+            reply = "Your cart contains:\n\n"
+            total_items = 0
+
+            for item in cart["items"]:
+                reply += (
+                    f"- {item['name']}: "
+                    f"Quantity {item['quantity']}, "
+                    f"Price ₹{item['price']:.2f}, "
+                    f"Subtotal ₹{item['subtotal']:.2f}\n"
+                )
+
+                total_items += item["quantity"]
+
+            reply += (
+                f"\nTotal: ₹{cart['total']:.2f}"
+                f"\nTotal Items: {total_items}"
+            )
+
+        sessions[request.session_id].append({
+            "role": "user",
+            "content": request.message
+        })
+
+        sessions[request.session_id].append({
+            "role": "assistant",
+            "content": reply
+        })
+
+        return {"reply": reply}
+        # B. Direct Stock Checking
+
+    stock_match = re.search(
+        r"(?:is|are)\s+(.+?)\s+(?:available|in stock)\??$|"
+        r"do you have\s+(.+?)\??$|"
+        r"(?:check|show)\s+stock\s+(?:of|for)\s+(.+?)\??$",
+        message_lower
+    )
+
+    if stock_match:
+
+        product_name = next(
+            (group for group in stock_match.groups() if group),
+            ""
+        ).strip()
+
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        try:
+            cursor.execute("""
+                SELECT id, name
+                FROM products
+                WHERE LOWER(name) LIKE %s
+            """, (f"%{product_name}%",))
+
+            products = cursor.fetchall()
+
+        finally:
+            cursor.close()
+            connection.close()
+
+        if len(products) == 0:
+
+            reply = f"Sorry, I couldn't find {product_name}."
+
+        elif len(products) > 1:
+
+            reply = "I found multiple matching products. Please specify the exact product name."
+
+        else:
+
+            result = check_stock(
+                product_id=products[0]["id"]
+            )
+
+            if "error" in result:
+
+                reply = result["error"]
+
+            elif result["available_stock"] > 0:
+
+                reply = (
+                    f"Yes! {result['product_name']} is available. "
+                    f"We currently have {result['available_stock']} pieces in stock."
+                )
+
+            else:
+
+                reply = (
+                    f"Sorry! {result['product_name']} is currently out of stock."
+                )
+
+        sessions[request.session_id].append({
+            "role": "user",
+            "content": request.message
+        })
+
+        sessions[request.session_id].append({
+            "role": "assistant",
+            "content": reply
+        })
+
+        return {"reply": reply}
+    # B. Update Cart
+
+    update_match = re.search(
+        r"(?:update|change|set)\s+(.+?)\s+(?:quantity\s+)?to\s+(\d+)",
+        message_lower
+    )
+
+    if update_match:
+
+        product_name = update_match.group(1).strip()
+        quantity = int(update_match.group(2))
+
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        try:
+            cursor.execute("""
+                SELECT DISTINCT p.id, p.name
+                FROM cart_items ci
+                JOIN products p ON ci.product_id = p.id
+                WHERE ci.session_id = %s
+                AND LOWER(p.name) LIKE %s
+            """, (request.session_id, f"%{product_name}%"))
+
+            products = cursor.fetchall()
+
+        finally:
+            cursor.close()
+            connection.close()
+
+        if len(products) == 0:
+            reply = f"I couldn't find {product_name} in your cart."
+
+        elif len(products) > 1:
+            reply = "I found multiple matching products. Please specify the exact product name."
+
+        else:
+            result = update_cart(
+                product_id=products[0]["id"],
+                quantity=quantity,
+                session_id=request.session_id
+            )
+
+            reply = (
+                result.get("message")
+                or result.get("error")
+                or "Cart update completed."
+            )
+
+        sessions[request.session_id].append({
+            "role": "user",
+            "content": request.message
+        })
+
+        sessions[request.session_id].append({
+            "role": "assistant",
+            "content": reply
+        })
+
+        return {"reply": reply}
+
+    # C. Remove from Cart
+
+    remove_match = re.search(
+        r"(?:remove|delete)\s+(.+?)(?:\s+from\s+(?:my\s+)?cart)?$",
+        message_lower
+    )
+
+    if remove_match:
+
+        product_name = remove_match.group(1).strip()
+
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        try:
+            cursor.execute("""
+                SELECT DISTINCT p.id, p.name
+                FROM cart_items ci
+                JOIN products p ON ci.product_id = p.id
+                WHERE ci.session_id = %s
+                AND LOWER(p.name) LIKE %s
+            """, (request.session_id, f"%{product_name}%"))
+
+            products = cursor.fetchall()
+
+        finally:
+            cursor.close()
+            connection.close()
+
+        if len(products) == 0:
+            reply = f"I couldn't find {product_name} in your cart."
+
+        elif len(products) > 1:
+            reply = "I found multiple matching products. Please specify the exact product name."
+
+        else:
+            result = remove_from_cart(
+                product_id=products[0]["id"],
+                session_id=request.session_id
+            )
+
+            reply = (
+                result.get("message")
+                or result.get("error")
+                or "Cart removal completed."
+            )
+
+        sessions[request.session_id].append({
+            "role": "user",
+            "content": request.message
+        })
+
+        sessions[request.session_id].append({
+            "role": "assistant",
+            "content": reply
+        })
+
+        return {"reply": reply}
+
+    # Step 7: Normal AI conversation
+
+    # Step 7: Normal AI conversation
+
+    result = chat_with_agent(
         request.message,
         sessions[request.session_id],
         pending_cart,
         request.session_id
     )
 
-    return {"reply": reply}
-
+    return {
+        "reply": result["reply"],
+        "comparison": result.get("comparison")
+    }
 class ChatRequest(BaseModel):
     message: str
     session_id: str
@@ -653,3 +961,78 @@ def get_my_account(
         "message" : 'Account details fetched successfully!',
         "user" : current_user
     }
+
+@app.get("/orders/my")
+def get_my_orders(
+    current_user: dict = Depends(get_current_user)
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                o.id AS order_id,
+                o.created_at,
+                o.total_amount,
+                o.order_status,
+                oi.product_id,
+                p.name AS product_name,
+                oi.quantity,
+                oi.price
+            FROM orders o
+            LEFT JOIN order_items oi
+                ON o.id = oi.order_id
+            LEFT JOIN products p
+                ON oi.product_id = p.id
+            WHERE o.user_id = %s
+            ORDER BY o.created_at DESC
+        """, (current_user["id"],))
+
+        rows = cursor.fetchall()
+
+        orders_dict = {}
+
+        for row in rows:
+
+            order_id = row["order_id"]
+
+            if order_id not in orders_dict:
+                orders_dict[order_id] = {
+                    "id": order_id,
+                    "created_at": row["created_at"],
+                    "total_amount": float(row["total_amount"]),
+                    "order_status": row["order_status"],
+                    "products": []
+                }
+
+            if row["product_id"] is not None:
+                orders_dict[order_id]["products"].append({
+                    "product_id": row["product_id"],
+                    "product_name": row["product_name"],
+                    "quantity": row["quantity"],
+                    "price": float(row["price"])
+                })
+
+        return {
+            "success": True,
+            "orders": list(orders_dict.values())
+        }
+
+    except Exception as e:
+        print("My Orders Error:", e)
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to fetch your orders."
+        )
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()

@@ -16,7 +16,7 @@ def get_db_connection():
     )
 
 
-def place_order(session_id, customer_name, phone, address):
+def place_order(session_id, customer_name, phone, address, user_id):
 
     connection = None
     cursor = None
@@ -96,18 +96,21 @@ def place_order(session_id, customer_name, phone, address):
         )
 
         # Step 7: Create order record
+        # Step 7: Create order record
         cursor.execute("""
             INSERT INTO orders (
                 session_id,
+                user_id,
                 customer_name,
                 phone,
                 address,
                 total_amount,
                 order_status
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (
             session_id,
+            user_id,
             customer_name,
             phone,
             address,
