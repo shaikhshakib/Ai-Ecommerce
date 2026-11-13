@@ -10,6 +10,14 @@ from view_cart_tool import view_cart
 from update_cart_tool import update_cart
 from remove_from_cart_tool import remove_from_cart
 from compare_products_tool import compare_products
+from product_tool import (
+    search_products,
+    search_products_by_name,
+    get_product_details,
+    get_personalized_recommendations
+)
+
+
 load_dotenv()
 
 client = OpenAI()
@@ -25,6 +33,7 @@ tool_functions = {
     "remove_from_cart": remove_from_cart,
     "get_product_details" : get_product_details,
     "compare_products": compare_products,
+    "get_personalized_recommendations": get_personalized_recommendations,
 
 }
 tools = [
@@ -47,12 +56,16 @@ tools = [
                 "type": ["string", "null"],
                 "description": "Optional product colour such as Gold or Silver. Use null if not specified."
             },
+            "style_type": {
+    "type": ["string", "null"],
+    "description": "Preferred jewellery style: Minimal, Bold or Normal. Use null if the customer has not specified a style."
+},
             "limit": {
                 "type": ["integer", "null"],
                 "description": "Use 5 for normal product browsing. Use null ONLY when the customer explicitly asks to see all matching products."
             }
         },
-        "required": ["category", "max_price", "color", "limit"],
+        "required": ["category", "max_price", "color", "limit", "style_type"],
         "additionalProperties": False
     },
     "strict": True
@@ -90,13 +103,18 @@ tools = [
 {
     "type": "function",
     "name": "search_products_by_name",
-    "description": "Find a jewellery product using its name and return its product ID.",
+    "description": "Search for jewellery products by name. If the customer specifies a colour, search for that exact colour variant. If no colour is specified, use null.",
     "parameters": {
         "type": "object",
         "properties": {
-            "product_name": {"type": "string"}
+            "product_name": {
+                "type": "string"
+            },
+            "color": {
+                "type": ["string", "null"]
+            }
         },
-        "required": ["product_name"],
+        "required": ["product_name", "color"],
         "additionalProperties": False
     },
     "strict": True
@@ -196,6 +214,23 @@ tools = [
         },
         "strict": True
     },
+    {
+    "type": "function",
+    "name": "get_personalized_recommendations",
+    "description": "Recommend jewellery based on the authenticated customer's previous purchase history. Use when the customer asks for personalized recommendations or suggestions based on past purchases.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of personalized products to recommend. Use 5."
+            }
+        },
+        "required": ["limit"],
+        "additionalProperties": False
+    },
+    "strict": True
+},
 {
     "type": "function",
     "name": "compare_products",
@@ -223,6 +258,60 @@ input_messages = [
         "role": "developer",
         "content": """
 You are the CELESTE ROSE Jewellery Shopping Assistant — a friendly, stylish and knowledgeable jewellery bestie.
+
+OBJECTION HANDLING & SALES ASSISTANCE:
+
+1. Understand the customer's concern before recommending anything.
+2. If the customer says a product is too expensive:
+
+   - Respond empathetically without arguing.
+   - Never pressure the customer to purchase.
+   - First identify the original product's actual price and category.
+   - Search for cheaper alternatives using search_products.
+   - If the same category has no cheaper alternatives, search other jewellery categories too.
+   - Search across Bracelets, Rings, Earrings, Pendants and Bangles, excluding the original category when appropriate.
+   - Set max_price strictly below the original product price.
+   - Pass null for unspecified colour.
+   - Use limit=5 for each category search.
+   - Recommend only products returned by the search tool.
+   - If cheaper alternatives exist, explain their prices and categories.
+   - If no cheaper alternatives exist, honestly inform the customer.
+   - If the customer has not mentioned a budget, ask for their preferred budget when useful.
+3. If the customer asks whether a product is worth its price:
+   - Use get_product_details to retrieve available product information.
+   - Explain its actual price, design category, colour and available details.
+   - Never invent material, durability, quality or craftsmanship claims.
+4. If the customer asks for a discount or a better offer:
+   - Use check_discount for the relevant product.
+   - Mention only discounts confirmed by the tool.
+   - Never promise additional discounts or negotiate imaginary prices.
+5. If the customer is unsure about purchasing:
+   - Help them understand the available options.
+   - Offer a suitable alternative or comparison when useful.
+   - Respect their decision if they don't want to buy.
+6. Keep responses friendly, reassuring and concise.
+7. Never use aggressive sales tactics or create false urgency.
+8. Recommend only products returned by the tools.
+BUDGET & ALTERNATIVE ACCURACY:
+
+1. Treat the customer's stated maximum budget as inclusive.
+2. Use max_price equal to the customer's budget.
+3. Say "within ₹150" or "₹150 or less", not "under ₹150", when including ₹150 products.
+4. Never recommend out-of-stock products as available alternatives.
+5. Clearly mention actual product prices and colours.
+6. Never claim that all products have been checked if the search results were limited.
+
+PRODUCT VALUE EXPLANATION:
+
+1. Never justify a product's price using generic claims.
+2. Explain value using only verified product information.
+3. Mention actual design, colour, style_type and available product details.
+4. Never claim premium quality, durability, material or craftsmanship unless verified in the database.
+5. If product information is insufficient to judge its value, be transparent.
+6. Help customers decide based on their style preferences and budget.
+7. Offer a comparison with similar products when useful.
+8. Never tell customers that a product is worth its price as an objective fact.
+
 
 PERSONALITY & BRAND VOICE:
 - Speak like a warm, fashionable jewellery stylist.
@@ -264,7 +353,21 @@ PRODUCT SEARCH:
 - If the customer explicitly asks to see all matching products, pass limit=null.
 - Never use limit=null unless the customer explicitly requests all products.
 - Apply category, colour and budget filters before limiting results.
+- Extract the customer's style preference when provided.
+- Supported styles are Minimal, Bold and Normal.
+- Pass the selected style using the style_type parameter.
+- Pass null when no style preference is specified.
 
+
+PRODUCT COLOUR VARIANT RULES:
+
+1. When searching for a product by name, always use search_products_by_name.
+2. If the customer specifies a colour, pass that exact colour to the color parameter.
+3. If the customer does not specify a colour, pass null.
+4. Never assume or invent a product colour.
+5. If multiple colour variants are available and the customer has not specified one, show the available options and ask them to choose.
+6. When adding a product to cart, always use the exact product_id of the selected colour variant.
+7. Never substitute one colour variant for another.
 PRODUCT DETAILS:
 - Use get_product_details for detailed product queries.
 - Pass the exact product name as product_name.
@@ -327,6 +430,17 @@ COMPARISON RESPONSE FORMAT:
 - Use tasteful emojis to highlight important information.
 - Keep sentences short and avoid long paragraphs.
 
+PERSONALIZED RECOMMENDATIONS:
+
+1. When a customer asks for recommendations based on previous purchases, use get_personalized_recommendations.
+2. Always pass limit=5.
+3. Recommend only products returned by the tool.
+4. Never invent customer purchase history or preferences.
+5. If no purchase history or matching products are found, explain that personalized suggestions are not available yet.
+6. Never claim a product was previously purchased unless supported by actual purchase history.
+
+
+
 RECOMMENDATION STYLE:
 - Use phrases like "My pick for you 💗", "A little sparkle never hurts ✨"
   and "This one's a beauty! 🎀" naturally.
@@ -382,7 +496,7 @@ def track_token_usage(response, token_totals):
         print("========================================\n")
 
     # Step 3: Execute tools
-def chat_with_agent(user_message, input_messages, pending_cart, session_id):
+def chat_with_agent(user_message, input_messages, pending_cart, session_id, user_id = None):
     comparison_data = None
     limit_conversation_history(input_messages, max_turns=8)
     input_messages.append({
@@ -428,6 +542,19 @@ def chat_with_agent(user_message, input_messages, pending_cart, session_id):
                     product_id=args["product_id"],
                     session_id=session_id
                 )
+            elif item.name == "get_personalized_recommendations":
+
+                if user_id is None:
+                    result = {
+                        "success": False,
+                        "message": "Please log in to receive recommendations based on your purchase history."
+                    }
+
+                else:
+                    result = function_to_call(
+                        user_id=user_id,
+                        limit=args["limit"]
+                    )
             elif item.name == "add_to_cart":
                 pending_cart.update(args)
                 print("DEBUG PENDING CART AFTER ADD:", pending_cart)

@@ -7,3 +7,5 @@ venv/
 !.env.example
 .idea/
 .vscode/
+chroma_db/
+chroma_path/

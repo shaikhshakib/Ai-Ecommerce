@@ -294,7 +294,17 @@ def chat(
     # Step 1: Handle pending cart confirmation
     if pending_cart:
 
-        if message_lower in ["yes", "yes please", "confirm", "do it", "add it"]:
+        if message_lower in [
+    "yes",
+    "yes please",
+    "confirm",
+    "do it",
+    "add it",
+    "yes add it",
+    "yes, add it",
+    "yes please add it",
+    "go ahead"
+]:
 
             result = add_to_cart(
                 product_id=pending_cart["product_id"],
@@ -302,7 +312,7 @@ def chat(
                 session_id=request.session_id,
                 confirmed=True
             )
-
+            print("DEBUG CONFIRMED CART RESULT:", result)
             pending_cart.clear()
 
             reply = (
@@ -748,11 +758,12 @@ def chat(
     # Step 7: Normal AI conversation
 
     result = chat_with_agent(
-        request.message,
-        sessions[request.session_id],
-        pending_cart,
-        request.session_id
-    )
+    request.message,
+    sessions[request.session_id],
+    pending_cart,
+    request.session_id,
+    user_id=current_user["id"] if current_user else None
+)
 
     return {
         "reply": result["reply"],
