@@ -28,6 +28,17 @@ def search_knowledge_base(query, k=3):
         k=k
     )
     return results
+
+def format_retrieved_context(results):
+
+    context = ""
+
+    for result in results:
+        context += result.page_content + "\n\n"
+
+    return context.strip()
+
+
 def create_vector_database():
     documents = []
 
@@ -87,8 +98,7 @@ if __name__ == "__main__":
         "How should I take care of my jewellery?"
     )
 
-    for result in results:
-        print("\nRetrieved Content:")
-        print(result.page_content)
+    context = format_retrieved_context(results)
 
-        print("Source:", result.metadata["source"])
+    print("\nFormatted Context:")
+    print(context)

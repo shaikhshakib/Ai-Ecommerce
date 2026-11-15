@@ -16,7 +16,7 @@ from product_tool import (
     get_product_details,
     get_personalized_recommendations
 )
-
+from rag import search_knowledge_base, format_retrieved_context
 
 load_dotenv()
 
@@ -495,24 +495,90 @@ def track_token_usage(response, token_totals):
         print("Total Tokens:", usage.total_tokens)
         print("========================================\n")
 
+def is_jewellery_care_question(message):
+
+    care_keywords = [
+        "care",
+        "clean",
+        "cleaning",
+        "store",
+        "storage",
+        "perfume",
+        "sweat",
+        "water",
+        "swimming",
+        "shower",
+        "maintain",
+        "protect",
+        "damage"
+    ]
+
+    message = message.lower()
+
+    return any(keyword in message for keyword in care_keywords)
+
+
     # Step 3: Execute tools
-def chat_with_agent(user_message, input_messages, pending_cart, session_id, user_id = None):
+def chat_with_agent(user_message, input_messages, pending_cart, session_id, user_id=None):
+
     comparison_data = None
+
     limit_conversation_history(input_messages, max_turns=8)
-    input_messages.append({
-        "role" : "user",
-        "content" : user_message
+
+    # Create a separate list for this API request
+    request_messages = input_messages.copy()
+
+    # STEP 1: Retrieve jewellery-care knowledge when relevant
+    rag_context_message = None
+
+    if is_jewellery_care_question(user_message):
+
+        try:
+            retrieved_docs = search_knowledge_base(user_message, k=3)
+
+            retrieved_context = format_retrieved_context(retrieved_docs)
+
+            if retrieved_context:
+
+                rag_context_message = {
+                    "role": "developer",
+                    "content": (
+                        "Use the following retrieved CELESTE ROSE jewellery-care "
+                        "information to answer the customer's care question. "
+                        "Treat it as the available brand guidance. "
+                        "Do not invent additional brand care instructions. "
+                        "If something is not covered, be transparent.\n\n"
+                        "RETRIEVED KNOWLEDGE:\n"
+                        f"{retrieved_context}"
+                    )
+                }
+
+                request_messages.append(rag_context_message)
+
+                print("RAG knowledge retrieved successfully!")
+
+        except Exception as e:
+            print("RAG retrieval error:", e)
+
+    # STEP 2: Add customer message
+    request_messages.append({
+        "role": "user",
+        "content": user_message
     })
 
+    # STEP 3: Send request to OpenAI
     response = client.responses.create(
-        
-        model = "gpt-4.1-mini",
-        input = input_messages,
-        tools = tools,
-        tool_choice = "auto"
+        model="gpt-4.1-mini",
+        input=request_messages,
+        tools=tools,
+        tool_choice="auto"
     )
+
     track_token_usage(response, token_totals)
+
+    # STEP 4: Execute tools
     while True:
+
         function_calls = [
             item for item in response.output
             if item.type == "function_call"
@@ -520,7 +586,8 @@ def chat_with_agent(user_message, input_messages, pending_cart, session_id, user
 
         if not function_calls:
             break
-        input_messages += response.output
+
+        request_messages += response.output
 
         for item in function_calls:
 
@@ -529,19 +596,23 @@ def chat_with_agent(user_message, input_messages, pending_cart, session_id, user
 
             if function_to_call is None:
                 result = {"error": "Unknown tool requested"}
+
             elif item.name == "view_cart":
                 result = view_cart(session_id)
+
             elif item.name == "update_cart":
                 result = update_cart(
                     product_id=args["product_id"],
                     quantity=args["quantity"],
                     session_id=session_id
                 )
+
             elif item.name == "remove_from_cart":
                 result = remove_from_cart(
                     product_id=args["product_id"],
                     session_id=session_id
                 )
+
             elif item.name == "get_personalized_recommendations":
 
                 if user_id is None:
@@ -555,9 +626,13 @@ def chat_with_agent(user_message, input_messages, pending_cart, session_id, user
                         user_id=user_id,
                         limit=args["limit"]
                     )
+
             elif item.name == "add_to_cart":
+
                 pending_cart.update(args)
+
                 print("DEBUG PENDING CART AFTER ADD:", pending_cart)
+
                 result = {
                     "success": False,
                     "pending_confirmation": True,
@@ -565,6 +640,7 @@ def chat_with_agent(user_message, input_messages, pending_cart, session_id, user
                 }
 
             else:
+
                 try:
                     result = function_to_call(**args)
 
@@ -573,32 +649,51 @@ def chat_with_agent(user_message, input_messages, pending_cart, session_id, user
 
                     print("DEBUG TOOL NAME:", item.name)
                     print("DEBUG TOOL RESULT:", result)
+
                 except Exception as e:
                     result = {"error": str(e)}
+
             print("DEBUG FUNCTION CALL:", item.name)
             print("DEBUG CALL ID:", item.call_id)
             print("DEBUG RESULT:", result)
-            input_messages.append({
-                "type" : "function_call_output",
-                'call_id' : item.call_id,
 
-                "output" : json.dumps(result, default = str)
+            request_messages.append({
+                "type": "function_call_output",
+                "call_id": item.call_id,
+                "output": json.dumps(result, default=str)
             })
+
             print("DEBUG OUTPUT ADDED FOR:", item.call_id)
+
         response = client.responses.create(
-            model = "gpt-4.1-mini",
-            input = input_messages,
-            tools = tools,
-            tool_choice = "auto"
+            model="gpt-4.1-mini",
+            input=request_messages,
+            tools=tools,
+            tool_choice="auto"
         )
     track_token_usage(response, token_totals)
-    input_messages += response.output
+    # STEP 5: Store the final AI response
+    request_messages += response.output
+
+
+    # STEP 6: Save conversation without temporary RAG context
+    new_messages = request_messages[len(input_messages):]
+
+    if rag_context_message is not None:
+        new_messages = [
+            message for message in new_messages
+            if message is not rag_context_message
+        ]
+
+    input_messages.extend(new_messages)
+
     print("\n========== TOTAL INTERACTION USAGE ==========")
     print("Total Input Tokens:", token_totals["input"])
     print("Total Output Tokens:", token_totals["output"])
     print("Total Tokens:", token_totals["total"])
     print("=============================================\n")
+
     return {
         "reply": response.output_text,
         "comparison": comparison_data
-    }            
+    }
