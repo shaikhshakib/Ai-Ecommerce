@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Navbar from '../components/Navbar'
 import './Shop.css'
-
+import { useNavigate } from 'react-router-dom'
 function Shop() {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -9,7 +9,7 @@ function Shop() {
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [searchTerm, setSearchTerm] = useState('')
   const [sortOrder, setSortOrder] = useState('default')
-
+  const navigate = useNavigate()
   useEffect(() => {
     async function fetchProducts() {
       try {
@@ -152,7 +152,9 @@ function Shop() {
                       <p>{product.category}</p>
                       <h3>{product.name}</h3>
                       <strong>₹{Number(product.price).toFixed(2)}</strong>
-                      <button>View Product</button>
+                      <button onClick={() => navigate(`/product/${product.id}`)}>
+  View Product
+</button>
                     </div>
                   </div>
                 ))}

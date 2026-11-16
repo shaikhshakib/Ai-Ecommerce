@@ -61,7 +61,7 @@ def get_current_user(
 
         cursor.execute(
             """
-            SELECT id, full_name, email, phone
+            SELECT id, full_name, email, phone, role
             FROM users
             WHERE id = %s
             """,
@@ -87,6 +87,21 @@ def get_current_user(
 
 # Optional authentication for chatbot
 optional_security = HTTPBearer(auto_error=False)
+
+
+def get_admin_user(
+        current_user: dict = Depends(get_current_user)
+):
+
+    if current_user["role"] != "admin":
+        raise HTTPException(
+            status_code= 403,
+            detail="Admin access required."
+        )
+
+    return current_user
+
+
 
 
 def get_optional_current_user(
@@ -115,7 +130,7 @@ def get_optional_current_user(
 
         cursor.execute(
             """
-            SELECT id, full_name, email, phone
+            SELECT id, full_name, email, phone, role
             FROM users
             WHERE id = %s
             """,
@@ -222,7 +237,7 @@ def get_product(product_id: int):
     return product
 
 @app.post("/products")
-def add_product(name: str, category: str, price: float):
+def add_product(name: str, category: str, price: float, current_user: dict = Depends(get_admin_user)):
     connection = get_db_connection()
     cursor = connection.cursor()
 
@@ -238,20 +253,20 @@ def add_product(name: str, category: str, price: float):
 
     return {"message": "Product added successfully"}
 
-@app.put("/products/{product_id}") 
-def update_product(product_id: int, price: float): 
-    connection = get_db_connection() 
-    cursor = connection.cursor() 
-    cursor.execute( "UPDATE products SET price = %s WHERE id = %s", (price, product_id) ) 
-    connection.commit() 
-    updated = cursor.rowcount 
-    cursor.close() 
-    connection.close() 
+@app.put("/products/{product_id}")
+def update_product(product_id: int, price: float, current_user: dict = Depends(get_admin_user)):
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute( "UPDATE products SET price = %s WHERE id = %s", (price, product_id) )
+    connection.commit()
+    updated = cursor.rowcount
+    cursor.close()
+    connection.close()
     return {"updated": updated}
 
 
 @app.delete("/products/{product_id}")
-def delete_product(product_id: int):
+def delete_product(product_id: int, current_user: dict = Depends(get_admin_user)):
     connection = get_db_connection()
     cursor = connection.cursor()
 
@@ -810,7 +825,7 @@ def register_user(request: RegisterRequest):
             status_code=400,
             detail= "Password should contain atleast one lowercase letter"
         )
-    
+
     if not re.search(r"[0-9]", password):
         raise HTTPException(
             status_code=40,
@@ -866,7 +881,7 @@ def register_user(request: RegisterRequest):
                 "id" : "user_id",
                 "full_name" : full_name,
                 "email" : email,
-                "phone" : phone                    
+                "phone" : phone
             }
         }
 
@@ -940,7 +955,8 @@ def login_user(request: LoginRequest):
                 "id" : user["id"],
                 "full_name" : user["full_name"],
                 "email" : user["email"],
-                "phone" : user["phone"]
+                "phone" : user["phone"],
+                "role": user["role"]
             }
         }
 
@@ -1045,5 +1061,96 @@ def get_my_orders(
         if cursor:
             cursor.close()
 
+        if connection:
+            connection.close()
+
+
+@app.get("/admin/dashboard")
+def get_admin_dashboard(
+    current_user: dict = Depends(get_admin_user)
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                COALESCE(
+                    SUM(
+                        CASE
+                            WHEN order_status IN ('Delivered', 'Completed')
+                            THEN total_amount
+                            ELSE 0
+                        END
+                    ), 0
+                ) AS total_sales,
+                COUNT(*) AS total_orders
+            FROM orders
+        """)
+
+        order_data = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT COUNT(*) AS total_products
+            FROM products
+        """)
+
+        product_data = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT COUNT(*) AS total_customers
+            FROM users
+            WHERE role = 'customer'
+        """)
+
+        customer_data = cursor.fetchone()
+
+        return {
+            "total_sales": float(order_data["total_sales"]),
+            "total_orders": order_data["total_orders"],
+            "total_products": product_data["total_products"],
+            "total_customers": customer_data["total_customers"]
+        }
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+@app.get("/admin/top-products")
+def get_top_products(
+    current_user: dict = Depends(get_admin_user)
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                p.id,
+                p.name,
+                p.category,
+                p.price,
+                SUM(oi.quantity) AS total_sold
+            FROM order_items oi
+            JOIN products p ON oi.product_id = p.id
+            GROUP BY p.id, p.name, p.category, p.price
+            ORDER BY total_sold DESC
+            LIMIT 5
+        """)
+
+        return cursor.fetchall()
+
+    finally:
+        if cursor:
+            cursor.close()
         if connection:
             connection.close()

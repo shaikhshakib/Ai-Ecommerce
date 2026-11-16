@@ -17,6 +17,13 @@ from product_tool import (
     get_personalized_recommendations
 )
 from rag import search_knowledge_base, format_retrieved_context
+import asyncio
+import os
+import sys
+
+from mcp import Client, StdioServerParameters
+
+
 
 load_dotenv()
 
@@ -36,6 +43,65 @@ tool_functions = {
     "get_personalized_recommendations": get_personalized_recommendations,
 
 }
+
+# Map existing OpenAI tool names to MCP server tool names
+MCP_TOOL_MAPPING = {
+    "search_products": "search_jewellery_products",
+    "get_product_details": "get_jewellery_product_details",
+    "check_stock": "check_jewellery_stock",
+    "check_discount": "check_jewellery_discount"
+}
+
+
+# Execute MCP tools asynchronously
+async def execute_mcp_calls(function_calls):
+
+    server_params = StdioServerParameters(
+        command=sys.executable,
+        args=["mcp_server.py"],
+        cwd=os.path.dirname(os.path.abspath(__file__))
+    )
+
+    results = {}
+
+    async with Client(server_params) as mcp_client:
+
+        for item in function_calls:
+
+            try:
+                mcp_tool_name = MCP_TOOL_MAPPING[item.name]
+                args = json.loads(item.arguments)
+
+                mcp_result = await mcp_client.call_tool(
+                    mcp_tool_name,
+                    args
+                )
+                print("MCP TOOL EXECUTED:", mcp_tool_name)
+
+                if mcp_result.is_error:
+                    results[item.call_id] = {
+                        "error": "MCP tool execution failed"
+                    }
+
+                else:
+                    result_text = next(
+                        content.text
+                        for content in mcp_result.content
+                        if content.type == "text"
+                    )
+
+                    results[item.call_id] = json.loads(result_text)
+
+            except Exception as e:
+
+                results[item.call_id] = {
+                    "error": str(e)
+                }
+
+    return results
+
+
+
 tools = [
     {
     "type": "function",
@@ -587,6 +653,18 @@ def chat_with_agent(user_message, input_messages, pending_cart, session_id, user
         if not function_calls:
             break
 
+                # Identify tools that should execute through MCP
+        mcp_function_calls = [
+            item for item in function_calls
+            if item.name in MCP_TOOL_MAPPING
+        ]
+
+        mcp_results = {}
+
+        if mcp_function_calls:
+            mcp_results = asyncio.run(
+                execute_mcp_calls(mcp_function_calls)
+            )
         request_messages += response.output
 
         for item in function_calls:
@@ -594,7 +672,14 @@ def chat_with_agent(user_message, input_messages, pending_cart, session_id, user
             function_to_call = tool_functions.get(item.name)
             args = json.loads(item.arguments)
 
-            if function_to_call is None:
+            if item.name in MCP_TOOL_MAPPING:
+
+                result = mcp_results.get(
+                    item.call_id,
+                    {"error": "MCP tool result not found"}
+                )
+
+            elif function_to_call is None:
                 result = {"error": "Unknown tool requested"}
 
             elif item.name == "view_cart":

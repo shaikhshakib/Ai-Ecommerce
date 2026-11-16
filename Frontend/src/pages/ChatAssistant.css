@@ -1,0 +1,490 @@
+.chat-assistant {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  z-index: 1000;
+  font-family: var(--body);
+}
+
+/* Floating button */
+
+.chat-toggle {
+  background: var(--burgundy);
+  color: white;
+  border: none;
+  padding: 15px 24px;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+  box-shadow: 0 6px 22px rgba(73, 53, 47, 0.22);
+  transition: all 0.3s ease;
+}
+
+.chat-toggle:hover {
+  background: var(--brown);
+  transform: translateY(-2px);
+}
+
+/* Chat window */
+
+.chat-window {
+  width: 390px;
+  height: 560px;
+  background: var(--ivory);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(73, 53, 47, 0.2);
+  animation: chatAppear 0.25s ease;
+}
+
+@keyframes chatAppear {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header */
+
+.chat-header {
+  background: linear-gradient(135deg, var(--burgundy), var(--brown));
+  color: white;
+  padding: 20px;
+}
+
+.chat-header h3 {
+  font-family: var(--heading);
+  font-size: 21px;
+  margin: 0 0 5px;
+  letter-spacing: 0.5px;
+}
+
+.chat-header p {
+  font-size: 11px;
+  margin: 0;
+  opacity: 0.85;
+  letter-spacing: 0.5px;
+}
+
+/* Messages */
+
+.chat-messages {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.message-container {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-container.user {
+  align-items: flex-end;
+}
+
+.message-container.assistant {
+  align-items: flex-start;
+}
+
+.message-bubble {
+  padding: 11px 14px;
+  border-radius: 13px;
+  max-width: 88%;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-bubble.user {
+  background: var(--blush);
+  color: var(--brown);
+  border-bottom-right-radius: 4px;
+}
+
+.message-bubble.assistant {
+  background: var(--cream);
+  color: var(--text);
+  border-bottom-left-radius: 4px;
+}
+
+/* Comparison section */
+
+.comparison-section {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.comparison-section > h3 {
+  font-family: var(--heading);
+  color: var(--burgundy);
+  font-size: 19px;
+  font-weight: 600;
+  margin: 8px 0 14px;
+}
+
+/* Product cards */
+
+.comparison-products {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.comparison-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 3px 12px rgba(73, 53, 47, 0.06);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.comparison-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 7px 18px rgba(73, 53, 47, 0.12);
+}
+
+/* Product image placeholder */
+
+.comparison-image {
+  height: 105px;
+  background: linear-gradient(135deg, var(--soft-pink), var(--cream));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.comparison-image span {
+  font-family: var(--heading);
+  color: var(--burgundy);
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+/* Product information */
+
+.comparison-info {
+  padding: 12px;
+}
+
+.comparison-info h4 {
+  font-family: var(--heading);
+  color: var(--brown);
+  font-size: 15px;
+  margin: 0 0 5px;
+  line-height: 1.4;
+}
+
+.comparison-colour {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0 0 9px;
+}
+
+.comparison-price {
+  color: var(--burgundy);
+  font-size: 19px;
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.comparison-details {
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+}
+
+.comparison-details p {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 0 9px;
+  font-size: 11px;
+}
+
+.comparison-details span {
+  color: var(--muted);
+}
+
+.comparison-details strong {
+  color: var(--brown);
+  font-weight: 600;
+}
+
+/* Loading */
+
+.typing-indicator {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 8px;
+  animation: typingPulse 1.2s infinite;
+}
+
+@keyframes typingPulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Input */
+
+.chat-input {
+  display: flex;
+  padding: 13px;
+  border-top: 1px solid var(--border);
+  gap: 9px;
+  background: white;
+}
+
+.chat-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  outline: none;
+  font-family: var(--body);
+  font-size: 12px;
+  background: var(--ivory);
+}
+
+.chat-input input:focus {
+  border-color: var(--mauve);
+}
+
+.chat-input button {
+  background: var(--burgundy);
+  color: white;
+  border: none;
+  padding: 10px 17px;
+  border-radius: 22px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.chat-input button:hover {
+  background: var(--brown);
+}
+
+.chat-input button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Scrollbar */
+
+.chat-messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: var(--beige);
+  border-radius: 10px;
+}
+
+/* Mobile */
+
+@media (max-width: 480px) {
+  .chat-window {
+    width: calc(100vw - 30px);
+    right: -10px;
+    height: min(580px, 75vh);
+  }
+
+  .chat-assistant {
+    right: 20px;
+    bottom: 20px;
+  }
+
+  .comparison-products {
+    gap: 8px;
+  }
+
+  .comparison-info {
+    padding: 9px;
+  }
+
+  .comparison-info h4 {
+    font-size: 13px;
+  }
+
+  .comparison-price {
+    font-size: 17px;
+  }
+}
+/* Welcome message */
+
+.chat-welcome {
+  background: linear-gradient(135deg, var(--soft-pink), var(--cream));
+  padding: 16px;
+  border-radius: 14px;
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.chat-welcome h3 {
+  font-family: var(--heading);
+  color: var(--burgundy);
+  margin: 0 0 8px;
+}
+
+.chat-welcome p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--brown);
+  margin: 0;
+}
+
+/* Suggested replies */
+
+.suggested-replies {
+  margin-top: 18px;
+}
+
+.suggested-replies > p {
+  color: var(--burgundy);
+  font-family: var(--heading);
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.suggested-reply-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggested-reply-buttons button {
+  background: white;
+  color: var(--burgundy);
+  border: 1px solid var(--blush);
+  border-radius: 20px;
+  padding: 9px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.suggested-reply-buttons button:hover {
+  background: var(--soft-pink);
+  border-color: var(--mauve);
+  transform: translateY(-2px);
+}
+
+/* Add to Cart button */
+
+.comparison-add-button {
+  width: 100%;
+  background: var(--burgundy);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 10px 8px;
+  margin-top: 12px;
+  font-family: var(--body);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.comparison-add-button:hover {
+  background: var(--brown);
+  transform: translateY(-2px);
+}
+
+.comparison-add-button:disabled {
+  background: #c9bdb8;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Compact suggested replies */
+
+.suggested-replies {
+  margin-top: 8px;
+}
+
+.suggested-replies > p {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.suggested-reply-buttons {
+  gap: 5px;
+}
+
+.suggested-reply-buttons button {
+  padding: 6px 9px;
+  font-size: 10px;
+}
+
+
+/* Fix header text visibility */
+
+.chat-header {
+  background: linear-gradient(135deg, #653b46, #815965);
+  color: #ffffff !important;
+}
+
+.chat-header h3,
+.chat-header p {
+  color: #ffffff !important;
+}
+
+.chat-header h3 {
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.chat-header p {
+  opacity: 0.95;
+}
+
+/* Clean message containers */
+
+.message-container.user,
+.message-container.assistant {
+  background: transparent !important;
+  border: none;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 0;
+}
+
+.message-bubble.user {
+  background: #f2dedd !important;
+  color: #49352f !important;
+}
+
+.message-bubble.assistant {
+  background: #f5ede5 !important;
+  color: #49352f !important;
+}
+
+.chat-window {
+  background: #fffaf7;
+  border: 1px solid #eadbd5;
+}
+
+.chat-messages {
+  background: #fffaf7;
+}
+
+.chat-input {
+  background: #fffaf7;
+}

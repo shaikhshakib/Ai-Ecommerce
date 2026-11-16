@@ -43,11 +43,11 @@ function Login() {
     }
 
     localStorage.setItem('access_token', data.access_token)
-
+    localStorage.setItem('user_role', data.user.role)
 // Create a customer-specific cart session
     localStorage.setItem('session_id', `user-${data.user.id}`)
 
-    navigate('/account')
+    navigate('/')
 
   } catch (error) {
     setError(error.message)

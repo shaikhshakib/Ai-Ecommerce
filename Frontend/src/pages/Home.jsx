@@ -1,34 +1,20 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState} from 'react'
 import '../App.css'
 import Navbar from '../components/Navbar'
-import { Link } from 'react-router-dom'
+import { Link} from 'react-router-dom'
 import './Home.css'
-
-function getSessionId() {
-  let sessionId = localStorage.getItem('session_id')
-
-  if (!sessionId) {
-    sessionId = crypto.randomUUID()
-    localStorage.setItem('session_id', sessionId)
-  }
-
-  return sessionId
-}
 
 
 function App() {
   const [products, setProducts] = useState([])
   const [category, setCategory] = useState('')
   const [maxPrice, setMaxPrice] = useState('')
-  const [messages, setMessages] = useState([])
-  const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     console.log("Step 2: About to call fetch")
     fetch('http://127.0.0.1:8000/products')
-    
+
       .then(response => response.json())
       .then(data => setProducts(data))
   }, [])
@@ -37,17 +23,19 @@ function App() {
     let url = 'http://127.0.0.1:8000/products/search?category='
     url += encodeURIComponent(category)
     url += '&max_price=' + (maxPrice || 100000)
-    
+
     fetch(url)
       .then(response => response.json())
       .then(data => setProducts(data))
   }
-async function sendMessage() {
-  if (!message.trim()) return
 
-  console.log("1. Send button clicked:", message)
+async function sendMessage(customMessage) {
+  const userMessage = (customMessage ?? message).trim()
 
-  const userMessage = message
+  if (!userMessage) return
+
+  console.log("1. Send button clicked:", userMessage)
+
   setMessages(prev => [...prev, { role: 'user', text: userMessage }])
   setMessage('')
   setLoading(true)
@@ -92,6 +80,15 @@ async function sendMessage() {
     console.log("6. Request completed")
   }
 }
+useEffect(() => {
+  const chatMessage = location.state?.chatMessage
+
+  if (chatMessage && !requestSent.current) {
+    requestSent.current = true
+
+    sendMessage(chatMessage)
+  }
+}, [location.key])
   return (
     <div>
         <Navbar />
@@ -117,33 +114,11 @@ async function sendMessage() {
 
   <div className="hero-decoration">
     <span className="hero-flower">✿</span>
-    <p>CÉLESTE ROSÉ</p>
+    <p>CELESTE ROSE        </p>
     <span>Elegance in Every Detail</span>
   </div>
 </section>
-    <div className="chatbot">
-  <h2>Chat with Celeste AI ✨</h2>
 
-  <div className="chat-messages">
-    {messages.map((msg, index) => (
-      <p key={index} className={msg.role}>
-        {msg.text}
-      </p>
-    ))}
-    {loading && <p>AI is typing...</p>}
-  </div>
-
-  <div className="chat-input">
-    <input
-      value={message}
-      onChange={e => setMessage(e.target.value)}
-      onKeyDown={e => e.key === 'Enter' && sendMessage()}
-      placeholder="Ask me about our jewellery..."
-    />
-
-    <button onClick={sendMessage}>Send</button>
-  </div>
-</div>
       <main>
         <div className="collection-heading">
   <p className="collection-tagline">CURATED WITH LOVE</p>

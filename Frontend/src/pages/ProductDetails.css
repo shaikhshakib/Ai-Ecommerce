@@ -1,0 +1,145 @@
+.product-details-page {
+  min-height: 100vh;
+  background: var(--ivory);
+}
+
+.product-details-container {
+  max-width: 1200px;
+  margin: 70px auto;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 70px;
+  align-items: center;
+}
+
+.product-details-image {
+  height: 520px;
+  background: var(--cream);
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+.product-details-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--burgundy);
+}
+
+.image-placeholder span {
+  font-family: var(--heading);
+  font-size: 32px;
+  letter-spacing: 5px;
+}
+
+.image-placeholder p {
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+.product-details-info {
+  padding: 20px;
+}
+
+.product-category {
+  color: var(--mauve);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-size: 12px;
+}
+
+.product-details-info h1 {
+  font-family: var(--heading);
+  font-size: 42px;
+  color: var(--brown);
+  margin: 15px 0;
+}
+
+.product-sku {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.product-price {
+  font-size: 25px;
+  color: var(--burgundy);
+  margin: 25px 0 10px;
+}
+
+.product-discount {
+  color: #66815b;
+  font-size: 13px;
+}
+
+.product-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 25px 0;
+}
+
+.product-color,
+.product-description,
+.product-stock {
+  margin-bottom: 20px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.product-stock {
+  color: var(--burgundy);
+  font-weight: 600;
+}
+
+.add-to-cart-button {
+  width: 100%;
+  padding: 16px;
+  border: none;
+  background: var(--burgundy);
+  color: white;
+  font-size: 14px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.add-to-cart-button:hover {
+  background: var(--brown);
+}
+
+.add-to-cart-button:disabled {
+  background: var(--muted);
+  cursor: not-allowed;
+}
+
+.product-loading,
+.product-error {
+  text-align: center;
+  padding: 100px 20px;
+  color: var(--burgundy);
+}
+
+@media (max-width: 768px) {
+  .product-details-container {
+    grid-template-columns: 1fr;
+    gap: 25px;
+    margin: 25px auto;
+  }
+
+  .product-details-image {
+    height: 350px;
+  }
+
+  .product-details-info h1 {
+    font-size: 32px;
+  }
+}
