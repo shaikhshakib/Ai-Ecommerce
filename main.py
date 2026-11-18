@@ -27,7 +27,30 @@ def get_db_connection():
         password=os.getenv("DB_PASSWORD"),
         database=os.getenv("DB_NAME")
     )
+# Save chat messages in MySQL
+def save_chat_log(session_id, user_id, role, message):
+    connection = None
+    cursor = None
 
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            INSERT INTO chat_logs (session_id, user_id, role, message)
+            VALUES (%s, %s, %s, %s)
+        """, (session_id, user_id, role, message))
+
+        connection.commit()
+
+    except Exception as e:
+        print("CHAT LOG ERROR:", e)
+
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 # FastAPI application
 app = FastAPI()
@@ -266,7 +289,7 @@ def update_product(product_id: int, price: float, current_user: dict = Depends(g
 
 
 @app.delete("/products/{product_id}")
-def delete_product(product_id: int, current_user: dict = Depends(get_admin_user)):
+def delete_product(product_id: int, current_user : dict = Depends(get_admin_user)):
     connection = get_db_connection()
     cursor = connection.cursor()
 
@@ -345,7 +368,19 @@ def chat(
                 "role": "assistant",
                 "content": reply
             })
+            save_chat_log(
+                request.session_id,
+                current_user["id"] if current_user else None,
+                "user",
+                request.message
+            )
 
+            save_chat_log(
+                request.session_id,
+                current_user["id"] if current_user else None,
+                "assistant",
+                reply
+            )
             return {"reply": reply}
 
         elif message_lower in ["no", "no thanks", "cancel", "don't", "dont"]:
@@ -383,7 +418,19 @@ def chat(
         checkout_states[request.session_id] = {
             "stage": "name"
         }
+        save_chat_log(
+            request.session_id,
+            current_user["id"],
+            "user",
+            "[Customer started checkout]"
+        )
 
+        save_chat_log(
+            request.session_id,
+            current_user["id"],
+            "assistant",
+            "Great! Let's complete your order. Please enter your full name."
+        )
         return {
             "reply": "Great! Let's complete your order. Please enter your full name."
         }
@@ -392,7 +439,19 @@ def chat(
     if checkout and message_lower in ["cancel", "cancel checkout", "stop"]:
 
         checkout_states.pop(request.session_id, None)
+        save_chat_log(
+            request.session_id,
+            current_user["id"] if current_user else None,
+            "user",
+            "[Customer cancelled checkout]"
+        )
 
+        save_chat_log(
+            request.session_id,
+            current_user["id"] if current_user else None,
+            "assistant",
+            "Checkout cancelled. Your cart is still safe."
+        )
         return {
             "reply": "Checkout cancelled. Your cart is still safe."
         }
@@ -502,6 +561,20 @@ def chat(
                 checkout_states.pop(request.session_id, None)
 
                 if result["success"]:
+
+                    save_chat_log(
+                        request.session_id,
+                        current_user["id"],
+                        "user",
+                        "[Customer confirmed order]"
+                    )
+
+                    save_chat_log(
+                        request.session_id,
+                        current_user["id"],
+                        "assistant",
+                        f"[Order placed successfully - Order ID: {result['order_id']}]"
+                    )
                     return {
                         "reply": (
                             f"Your order has been placed successfully!\n\n"
@@ -517,7 +590,19 @@ def chat(
             elif message_lower in ["no", "no thanks"]:
 
                 checkout_states.pop(request.session_id, None)
+                save_chat_log(
+                    request.session_id,
+                    current_user["id"] if current_user else None,
+                    "user",
+                    "[Customer declined order]"
+                )
 
+                save_chat_log(
+                    request.session_id,
+                    current_user["id"] if current_user else None,
+                    "assistant",
+                    "Your order was not placed. Your cart is still available."
+                )
                 return {
                     "reply": "Your order was not placed. Your cart is still available."
                 }
@@ -572,6 +657,19 @@ def chat(
             "role": "assistant",
             "content": reply
         })
+        save_chat_log(
+            request.session_id,
+            current_user["id"] if current_user else None,
+            "user",
+            request.message
+        )
+
+        save_chat_log(
+            request.session_id,
+            current_user["id"] if current_user else None,
+            "assistant",
+            reply
+        )
 
         return {"reply": reply}
         # B. Direct Stock Checking
@@ -706,7 +804,19 @@ def chat(
             "role": "assistant",
             "content": reply
         })
+        save_chat_log(
+            request.session_id,
+            current_user["id"] if current_user else None,
+            "user",
+            request.message
+        )
 
+        save_chat_log(
+            request.session_id,
+            current_user["id"] if current_user else None,
+            "assistant",
+            reply
+        )
         return {"reply": reply}
 
     # C. Remove from Cart
@@ -765,7 +875,19 @@ def chat(
             "role": "assistant",
             "content": reply
         })
+        save_chat_log(
+            request.session_id,
+            current_user["id"] if current_user else None,
+            "user",
+            request.message
+        )
 
+        save_chat_log(
+            request.session_id,
+            current_user["id"] if current_user else None,
+            "assistant",
+            reply
+        )
         return {"reply": reply}
 
     # Step 7: Normal AI conversation
@@ -779,6 +901,19 @@ def chat(
     request.session_id,
     user_id=current_user["id"] if current_user else None
 )
+    save_chat_log(
+    request.session_id,
+    current_user["id"] if current_user else None,
+    "user",
+    request.message
+)
+
+    save_chat_log(
+        request.session_id,
+        current_user["id"] if current_user else None,
+        "assistant",
+        result["reply"]
+    )
 
     return {
         "reply": result["reply"],
@@ -1064,6 +1199,153 @@ def get_my_orders(
         if connection:
             connection.close()
 
+@app.get("/admin/orders")
+def get_all_orders(
+    current_user: dict = Depends(get_admin_user)
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                o.id AS order_id,
+                o.created_at,
+                o.total_amount,
+                o.order_status,
+                o.customer_name,
+                o.phone,
+                o.address,
+                u.full_name AS user_name,
+                u.email,
+                oi.product_id,
+                p.name AS product_name,
+                oi.quantity,
+                oi.price
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.id
+            LEFT JOIN order_items oi ON o.id = oi.order_id
+            LEFT JOIN products p ON oi.product_id = p.id
+            ORDER BY o.created_at DESC
+        """)
+
+        rows = cursor.fetchall()
+
+        orders_dict = {}
+
+        for row in rows:
+            order_id = row["order_id"]
+
+            if order_id not in orders_dict:
+                orders_dict[order_id] = {
+                    "id": order_id,
+                    "created_at": row["created_at"],
+                    "total_amount": float(row["total_amount"]),
+                    "order_status": row["order_status"],
+                    "customer_name": row["user_name"] or row["customer_name"],
+                    "email": row["email"],
+                    "phone": row["phone"],
+                    "address": row["address"],
+                    "products": []
+                }
+
+            if row["product_id"] is not None:
+                orders_dict[order_id]["products"].append({
+                    "product_id": row["product_id"],
+                    "product_name": row["product_name"],
+                    "quantity": row["quantity"],
+                    "price": float(row["price"])
+                })
+
+        return {
+            "success": True,
+            "orders": list(orders_dict.values())
+        }
+
+    except Exception as e:
+        print("Admin Orders Error:", e)
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to fetch orders."
+        )
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+@app.put("/admin/orders/{order_id}/status")
+def update_order_status(
+    order_id: int,
+    status: str,
+    current_user: dict = Depends(get_admin_user)
+):
+    allowed_statuses = [
+        "Pending",
+        "Confirmed",
+        "Shipped",
+        "Delivered",
+        "Cancelled"
+    ]
+
+    if status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid order status."
+        )
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            UPDATE orders
+            SET order_status = %s
+            WHERE id = %s
+        """, (status, order_id))
+
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Order not found."
+            )
+
+        connection.commit()
+
+        return {
+            "success": True,
+            "message": f"Order #{order_id} status updated to {status}."
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        connection.rollback()
+        print("Order Status Update Error:", e)
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to update order status."
+        )
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
 
 @app.get("/admin/dashboard")
 def get_admin_dashboard(
@@ -1152,5 +1434,129 @@ def get_top_products(
     finally:
         if cursor:
             cursor.close()
+        if connection:
+            connection.close()
+
+@app.get("/admin/sales-analytics")
+def get_sales_analytics(
+    current_user: dict = Depends(get_admin_user)
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        # Monthly revenue and orders
+        cursor.execute("""
+            SELECT
+                DATE_FORMAT(created_at, '%Y-%m') AS month,
+                SUM(
+                    CASE
+                        WHEN order_status IN ('Delivered', 'Completed')
+                        THEN total_amount
+                        ELSE 0
+                    END
+                ) AS revenue,
+                COUNT(*) AS total_orders
+            FROM orders
+            GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+            ORDER BY month ASC
+        """)
+
+        monthly_data = cursor.fetchall()
+
+        # Average order value (completed orders only)
+        cursor.execute("""
+            SELECT
+                COALESCE(AVG(total_amount), 0) AS average_order_value
+            FROM orders
+            WHERE order_status IN ('Delivered', 'Completed')
+        """)
+
+        average_data = cursor.fetchone()
+
+        # Order status breakdown
+        cursor.execute("""
+            SELECT
+                order_status,
+                COUNT(*) AS count
+            FROM orders
+            GROUP BY order_status
+        """)
+
+        status_data = cursor.fetchall()
+
+        return {
+            "monthly_sales": [
+                {
+                    "month": row["month"],
+                    "revenue": float(row["revenue"] or 0),
+                    "total_orders": row["total_orders"]
+                }
+                for row in monthly_data
+            ],
+            "average_order_value": float(
+                average_data["average_order_value"]
+            ),
+            "order_status_breakdown": status_data
+        }
+
+    except Exception as e:
+        print("Sales Analytics Error:", e)
+
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to fetch sales analytics."
+        )
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+@app.get("/admin/chat-logs")
+def get_admin_chat_logs(
+    current_user: dict = Depends(get_admin_user)
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                cl.id,
+                cl.session_id,
+                cl.user_id,
+                COALESCE(u.full_name, 'Guest Customer') AS customer_name,
+                cl.role,
+                cl.message,
+                cl.created_at
+            FROM chat_logs cl
+            LEFT JOIN users u ON cl.user_id = u.id
+            ORDER BY cl.created_at DESC
+            LIMIT 500
+        """)
+
+        logs = cursor.fetchall()
+
+        return logs
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+    finally:
+        if cursor:
+            cursor.close()
+
         if connection:
             connection.close()

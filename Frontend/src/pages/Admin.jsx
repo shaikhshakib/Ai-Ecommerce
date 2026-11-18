@@ -12,6 +12,14 @@ function Admin() {
   total_customers: 0
 })
 const [products, setProducts] = useState([])
+const [orders, setOrders] = useState([])
+const [chatLogs, setChatLogs] = useState([])
+const [salesAnalytics, setSalesAnalytics] = useState({
+    monthly_sales: [],
+    average_order_value: 0,
+    order_status_breakdown: []
+})
+const [orderFilter, setOrderFilter] = useState('All')
 const [topProducts, setTopProducts] = useState([])
 const [newProduct, setNewProduct] = useState({
   name: '',
@@ -20,6 +28,10 @@ const [newProduct, setNewProduct] = useState({
 })
 const [notification, setNotification] = useState('')
 const [editProduct, setEditProduct] = useState(null)
+
+
+
+
 useEffect(() => {
   async function fetchDashboard() {
     try {
@@ -88,6 +100,125 @@ useEffect(() => {
 
   fetchProducts()
 }, [])
+useEffect(() => {
+    async function fetchOrders() {
+        try {
+            const response = await fetch(
+                'http://127.0.0.1:8000/admin/orders',
+                {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('access_token')}`
+                    }
+                }
+            )
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch orders')
+            }
+
+            const data = await response.json()
+            setOrders(data.orders)
+
+        } catch (error) {
+            console.error('Orders Error:', error)
+        }
+    }
+
+    fetchOrders()
+}, [])
+useEffect(() => {
+    async function fetchChatLogs() {
+        try {
+            const response = await fetch(
+                'http://127.0.0.1:8000/admin/chat-logs',
+                {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('access_token')}`
+                    }
+                }
+            )
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch chat logs')
+            }
+
+            const data = await response.json()
+            setChatLogs(data)
+
+        } catch (error) {
+            console.error('Chat Logs Error:', error)
+        }
+    }
+
+    fetchChatLogs()
+}, [])
+useEffect(() => {
+    const fetchSalesAnalytics = async () => {
+        try {
+            const token = localStorage.getItem('access_token')
+
+            const response = await fetch('http://127.0.0.1:8000/admin/sales-analytics', {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            })
+
+            const data = await response.json()
+
+            if (response.ok) {
+                setSalesAnalytics(data)
+            }
+        } catch (error) {
+            console.error('Sales Analytics Error:', error)
+        }
+    }
+
+    fetchSalesAnalytics()
+}, [])
+
+
+
+async function handleUpdateOrderStatus(orderId, newStatus) {
+    try {
+        const params = new URLSearchParams({
+            status: newStatus
+        })
+
+        const response = await fetch(
+            `http://127.0.0.1:8000/admin/orders/${orderId}/status?${params}`,
+            {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('access_token')}`
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error('Failed to update order status')
+        }
+
+        const data = await response.json()
+
+        setNotification(data.message + ' ✨')
+        setTimeout(() => setNotification(''), 3000)
+
+        // Update order status locally
+        setOrders(prevOrders =>
+            prevOrders.map(order =>
+                order.id === orderId
+                    ? { ...order, order_status: newStatus }
+                    : order
+            )
+        )
+
+    } catch (error) {
+        console.error(error)
+        setNotification('Could not update order status.')
+        setTimeout(() => setNotification(''), 3000)
+    }
+}
+
 async function handleAddProduct(e) {
     e.preventDefault()
 
@@ -265,7 +396,7 @@ async function handleDeleteProduct(productId) {
 
 
         </section>
-        <section className="admin-section" id="analytics">
+        <section className="admin-section" id="top-products">
     <h2>Top-Selling Products</h2>
 
     <table className="admin-table">
@@ -389,6 +520,161 @@ async function handleDeleteProduct(productId) {
         </tbody>
     </table>
 </section>
+<section className="admin-section" id="orders">
+    <h2>Order Management</h2>
+
+    <div className="order-filters">
+        {['All', 'Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'].map(status => (
+            <button
+                key={status}
+                onClick={() => setOrderFilter(status)}
+                className={orderFilter === status ? 'active' : ''}
+            >
+                {status}
+            </button>
+        ))}
+    </div>
+
+    <div className="admin-orders">
+        {orders
+            .filter(order =>
+                orderFilter === 'All' || order.order_status === orderFilter
+            )
+            .map(order => (
+                <div className="admin-order-card" key={order.id}>
+
+                    <div className="admin-order-header">
+                        <div>
+                            <h3>Order #{order.id}</h3>
+                            <p>
+                                {new Date(order.created_at).toLocaleString('en-IN')}
+                            </p>
+                        </div>
+
+                        <span className={`order-status ${order.order_status.toLowerCase()}`}>
+                            {order.order_status}
+                        </span>
+                    </div>
+
+                    <div className="admin-order-customer">
+                        <p><strong>Customer:</strong> {order.customer_name || 'Guest'}</p>
+                        <p><strong>Email:</strong> {order.email || 'Not available'}</p>
+                        <p><strong>Phone:</strong> {order.phone || 'Not available'}</p>
+                        <p><strong>Address:</strong> {order.address || 'Not available'}</p>
+                    </div>
+
+                    <div className="admin-order-products">
+                        <h4>Products</h4>
+
+                        {order.products.map((product, index) => (
+                            <div key={index} className="admin-order-product">
+                                <span>
+                                    {product.product_name} × {product.quantity}
+                                </span>
+                                <span>₹{product.price * product.quantity}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="admin-order-footer">
+                        <strong>Total: ₹{order.total_amount}</strong>
+
+                        <select
+                            value={order.order_status}
+                            onChange={(e) =>
+                                handleUpdateOrderStatus(order.id, e.target.value)
+                            }
+                        >
+                            {['Pending', 'Confirmed', 'Shipped', 'Delivered', 'Cancelled'].map(status => (
+                                <option key={status} value={status}>
+                                    {status}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                </div>
+            ))}
+    </div>
+</section>
+{/* Sales Analytics */}
+<section className="admin-section" id="analytics">
+    <h2>Sales Analytics</h2>
+
+    <div className="analytics-summary">
+        <div className="analytics-card">
+            <h3>Average Order Value</h3>
+            <p>₹{salesAnalytics.average_order_value.toFixed(2)}</p>
+        </div>
+
+        <div className="analytics-card">
+            <h3>Total Orders</h3>
+            <p>
+                {salesAnalytics.monthly_sales.reduce(
+                    (total, item) => total + item.total_orders, 0
+                )}
+            </p>
+        </div>
+    </div>
+
+    <div className="analytics-card">
+        <h3>Monthly Sales</h3>
+
+        {salesAnalytics.monthly_sales.length === 0 ? (
+            <p>No sales data available.</p>
+        ) : (
+            salesAnalytics.monthly_sales.map((item) => (
+                <div className="monthly-sale" key={item.month}>
+                    <span>{item.month}</span>
+                    <span>₹{item.revenue.toFixed(2)}</span>
+                    <span>{item.total_orders} Orders</span>
+                </div>
+            ))
+        )}
+    </div>
+
+    <div className="analytics-card">
+        <h3>Order Status Breakdown</h3>
+
+        {salesAnalytics.order_status_breakdown.map((item) => (
+            <div className="monthly-sale" key={item.order_status}>
+                <span>{item.order_status}</span>
+                <span>{item.count} Orders</span>
+            </div>
+        ))}
+    </div>
+</section>
+
+{/* Chat Logs */}
+<section className="admin-section" id="chats">
+    <h2>Customer Conversations 🎀</h2>
+    <p>View conversations between customers and the CELESTE ROSE AI Assistant.</p>
+
+    <div className="chat-logs-container">
+        {chatLogs.length === 0 ? (
+            <p>No chat conversations available.</p>
+        ) : (
+            chatLogs.map((log) => (
+                <div className="chat-log-card" key={log.id}>
+                    <div className="chat-log-header">
+                        <strong>{log.customer_name}</strong>
+                        <span>{log.role === 'user' ? 'Customer' : 'AI Assistant'}</span>
+                    </div>
+
+                    <p className="chat-log-message">{log.message}</p>
+
+                    <div className="chat-log-footer">
+                        <small>Session: {log.session_id}</small>
+                        <small>
+                            {new Date(log.created_at).toLocaleString('en-IN')}
+                        </small>
+                    </div>
+                </div>
+            ))
+        )}
+    </div>
+</section>
+
         </main>
 
         </div>
